@@ -37,12 +37,48 @@
                                 <div id="guest_search_results" role="listbox" aria-label="Search results">
                                     <!-- Search results will be populated here -->
                                 </div>
+                                <div class="mt-2">
+                                    <button type="button" id="openCreateGuestModal" class="text-sm text-indigo-600 hover:text-indigo-800">
+                                        + {{ __('Create new guest') }}
+                                    </button>
+                                </div>
                             </div>
                             @error('user_id')
                                 <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                             @enderror
                         </div>
                     @endif
+
+                    <!-- Identification (Shown if selected/current user has no ID saved) -->
+                    <div id="identificationSection" class="mb-4 hidden">
+                        <h3 class="text-md font-semibold text-gray-800 mb-2">Guest Identification</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="identification_type" class="block text-gray-700 text-sm font-bold mb-2">
+                                    {{ __('ID Type') }} <span class="text-red-500">*</span>
+                                </label>
+                                <select id="identification_type" name="identification_type" class="form-select w-full">
+                                    <option value="">{{ __('Select ID Type') }}</option>
+                                    <option value="passport">{{ __('Passport') }}</option>
+                                    <option value="id_card">{{ __('National ID Card') }}</option>
+                                    <option value="driving_license">{{ __('Driver\'s License') }}</option>
+                                </select>
+                                @error('identification_type')
+                                    <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
+                            <div>
+                                <label for="identification_number" class="block text-gray-700 text-sm font-bold mb-2">
+                                    {{ __('ID/Passport Number') }} <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="identification_number" name="identification_number" class="form-input w-full" value="{{ old('identification_number') }}">
+                                @error('identification_number')
+                                    <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">{{ __('We require a valid identification document for all bookings.') }}</p>
+                    </div>
 
                     <div class="mb-4">
                         <label for="room_type_id" class="block text-gray-700 text-sm font-bold mb-2">
@@ -53,7 +89,7 @@
                             <option value="">{{ __('Select a room type') }}</option>
                             @foreach($roomTypes as $roomType)
                                 <option value="{{ $roomType->id }}" {{ old('room_type_id') == $roomType->id ? 'selected' : '' }}>
-                                    {{ $roomType->name }} - ${{ number_format($roomType->price_per_night, 2) }}/night 
+                                    {{ $roomType->name }} - ₦{{ number_format($roomType->price_per_night, 2) }}/night 
                                     ({{ $roomType->capacity }} {{ Str::plural('person', $roomType->capacity) }})
                                 </option>
                             @endforeach
@@ -165,8 +201,289 @@
         return true;
     }
     
-    // Add event listener to check-in date field
+    // Function to handle guest selection
+    function handleGuestSelection(guest) {
+        console.log('Handling guest selection:', guest);
+        
+        if (!guest || !guest.id) {
+            console.error('Invalid guest data provided to handleGuestSelection:', guest);
+            return;
+        }
+        
+        // Update the user ID input
+        const userIdInput = document.getElementById('user_id');
+        if (userIdInput) {
+            userIdInput.value = guest.id;
+            console.log('Set user_id to:', guest.id);
+            
+            // Dispatch a change event to trigger any listeners
+            try {
+                const changeEvent = new Event('change', { 
+                    bubbles: true, 
+                    cancelable: true 
+                });
+                userIdInput.dispatchEvent(changeEvent);
+                console.log('Dispatched change event on user_id input');
+            } catch (error) {
+                console.error('Error dispatching change event:', error);
+            }
+        } else {
+            console.error('Could not find user_id input element');
+        }
+        
+        // Update the search input with the guest's name
+        const searchInput = document.getElementById('guest_search');
+        if (searchInput) {
+            searchInput.value = guest.name || '';
+            searchInput.setAttribute('aria-expanded', 'false');
+            console.log('Updated search input with guest name:', guest.name);
+        }
+        
+        // Hide search results
+        const searchResults = document.getElementById('guest_search_results');
+        if (searchResults) {
+            searchResults.innerHTML = '';
+            searchResults.classList.add('hidden');
+            console.log('Cleared and hid search results');
+        }
+        
+        // Check if ID is required for this guest
+        console.log('Checking ID requirement for guest:', guest.id);
+        checkGuestIdRequirement(guest.id);
+        
+        // Dispatch a custom event that the guest was selected
+        const selectedEvent = new CustomEvent('guestSelected', {
+            detail: { 
+                guestId: guest.id,
+                guestData: guest
+            },
+            bubbles: true
+        });
+        document.dispatchEvent(selectedEvent);
+        
+        console.log('Finished handling guest selection for:', guest.name || 'Unknown Guest');
+    }
+    
+    // Function to check if a guest needs to provide ID
+    async function checkGuestIdRequirement(guestId) {
+        console.log('Checking ID requirement for guest:', guestId);
+        
+        if (!guestId) {
+            console.log('No guest ID provided, hiding ID section');
+            setIdRequired(false);
+            return;
+        }
+        
+        // Show loading state
+        const idSection = document.getElementById('identificationSection');
+        if (idSection) {
+            idSection.innerHTML = '<p>Loading guest information...</p>';
+            idSection.classList.remove('hidden');
+        }
+        
+        try {
+            console.log('Fetching guest data from API...');
+            const response = await fetch(`/api/guests/${guestId}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (!response.ok) {
+                console.error('Failed to fetch guest data', response.status, response.statusText);
+                setIdRequired(false);
+                return;
+            }
+            
+            const guest = await response.json();
+            console.log('Received guest data:', guest);
+            
+            if (!guest) {
+                console.log('No guest data received');
+                setIdRequired(true);
+                return;
+            }
+            
+            // Debug: Log the exact ID values
+            console.log('Guest ID type:', typeof guest.identification_type, 'value:', `'${guest.identification_type}'`);
+            console.log('Guest ID number:', typeof guest.identification_number, 'value:', `'${guest.identification_number}'`);
+            
+            // Check if guest has valid ID information
+            const hasValidId = guest.identification_type && 
+                             guest.identification_type.toString().trim() !== '' && 
+                             guest.identification_number && 
+                             guest.identification_number.toString().trim() !== '';
+            
+            console.log('Has valid ID?', hasValidId);
+            
+            // Only require ID if guest doesn't have valid ID info
+            setIdRequired(!hasValidId);
+            
+            // If ID is required, ensure the form validates it
+            if (!hasValidId) {
+                const idType = document.getElementById('identification_type');
+                const idNumber = document.getElementById('identification_number');
+                
+                if (idType) idType.required = true;
+                if (idNumber) idNumber.required = true;
+            }
+            
+        } catch (error) {
+            console.error('Error checking guest ID requirement:', error);
+            setIdRequired(false);
+        }
+    }
+    
+    // Function to set ID fields as required or not
+    function setIdRequired(required) {
+        console.log('Setting ID required:', required);
+        
+        const identificationSection = document.getElementById('identificationSection');
+        if (!identificationSection) {
+            console.error('Identification section not found');
+            return;
+        }
+        
+        const idType = document.getElementById('identification_type');
+        const idNumber = document.getElementById('identification_number');
+        
+        if (required) {
+            // Show the section
+            identificationSection.classList.remove('hidden');
+            
+            // Set required attributes
+            if (idType) {
+                idType.required = true;
+                idType.setAttribute('aria-required', 'true');
+            }
+            if (idNumber) {
+                idNumber.required = true;
+                idNumber.setAttribute('aria-required', 'true');
+            }
+            
+            // Ensure the section is visible
+            identificationSection.style.display = 'block';
+            
+            console.log('ID fields are now required');
+        } else {
+            // Hide the section
+            identificationSection.classList.add('hidden');
+            
+            // Clear required attributes
+            if (idType) {
+                idType.required = false;
+                idType.removeAttribute('aria-required');
+            }
+            if (idNumber) {
+                idNumber.required = false;
+                idNumber.removeAttribute('aria-required');
+            }
+            
+            // Clear any validation messages
+            const errorMessages = identificationSection.querySelectorAll('.text-red-500');
+            errorMessages.forEach(msg => msg.remove());
+            
+            // Clear any validation states
+            if (idType) idType.classList.remove('border-red-500');
+            if (idNumber) idNumber.classList.remove('border-red-500');
+            
+            console.log('ID fields are now optional');
+        }
+        
+        // Trigger a custom event that other parts of the code can listen to
+        const event = new CustomEvent('idRequirementChange', { 
+            detail: { required } 
+        });
+        document.dispatchEvent(event);
+    }
+    
+    // Function to select an option from search results
+    function selectOption(option) {
+        console.log('Selecting option:', option);
+        
+        // Get the guest data from the option
+        const guestId = option.getAttribute('data-id');
+        let guestData;
+        
+        try {
+            guestData = JSON.parse(option.getAttribute('data-guest'));
+        } catch (e) {
+            console.error('Error parsing guest data:', e);
+            return;
+        }
+        
+        if (!guestData) {
+            console.error('No guest data found in option');
+            return;
+        }
+        
+        console.log('Selected guest data:', guestData);
+        
+        // Get all necessary DOM elements
+        const userIdInput = document.getElementById('user_id');
+        const searchInput = document.getElementById('guest_search');
+        const searchResults = document.getElementById('guest_search_results');
+        
+        // Update the hidden input with the guest ID
+        if (userIdInput) {
+            userIdInput.value = guestId;
+            console.log('Set user_id to:', guestId);
+            
+            // Trigger change event to update any listeners
+            try {
+                const changeEvent = new Event('change', { bubbles: true, cancelable: true });
+                userIdInput.dispatchEvent(changeEvent);
+                console.log('Dispatched change event on user_id input');
+            } catch (error) {
+                console.error('Error dispatching change event:', error);
+            }
+        }
+        
+        // Update the search input with the guest's name
+        if (searchInput) {
+            searchInput.value = guestData.name || '';
+            searchInput.setAttribute('aria-expanded', 'false');
+        }
+        
+        // Hide search results
+        if (searchResults) {
+            searchResults.innerHTML = '';
+            searchResults.classList.add('hidden');
+        }
+        
+        // Focus the search input
+        if (searchInput) {
+            searchInput.focus();
+        }
+        
+        // Check if ID is required for this guest
+        console.log('Checking ID requirement for selected guest:', guestId);
+        checkGuestIdRequirement(guestId);
+        
+        // Dispatch a custom event that the guest was selected
+        const selectedEvent = new CustomEvent('guestSelected', {
+            detail: { 
+                guestId: guestId,
+                guestData: guestData
+            },
+            bubbles: true
+        });
+        document.dispatchEvent(selectedEvent);
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize variables
+        const userIdInput = document.getElementById('user_id');
+        const searchInput = document.getElementById('guest_search');
+        const searchResults = document.getElementById('guest_search_results');
+        
+        console.log('Search input element:', searchInput);
+        console.log('User ID input element:', userIdInput);
+        console.log('Search results element:', searchResults);
+        
+        // Check-in date handling
         const checkInInput = document.getElementById('check_in');
         if (checkInInput) {
             checkInInput.addEventListener('change', function() {
@@ -174,16 +491,159 @@
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 
-                const earlyCheckinCheckbox = document.getElementById('is_early_checkin');
-                
-                // Enable/disable early check-in based on check-in date
-                if (checkInDate > today) {
-                    earlyCheckinCheckbox.disabled = false;
+                // If check-in date is today, show early check-in options
+                if (checkInDate.getTime() === today.getTime()) {
+                    document.getElementById('early_checkin_fields').classList.remove('hidden');
                 } else {
-                    earlyCheckinCheckbox.checked = false;
-                    earlyCheckinCheckbox.disabled = true;
+                    document.getElementById('early_checkin_fields').classList.add('hidden');
+                    document.getElementById('early_checkin').checked = false;
                 }
             });
+        }
+        
+        // --- ID Requirement Logic ---
+        const identificationSection = document.getElementById('identificationSection');
+        const idType = document.getElementById('identification_type');
+        const idNumber = document.getElementById('identification_number');
+        
+        // Function to show/hide ID fields based on requirement
+        function setIdRequired(required) {
+            if (!idType || !idNumber || !identificationSection) return;
+            
+            if (required) {
+                identificationSection.classList.remove('hidden');
+                idType.required = true;
+                idNumber.required = true;
+            } else {
+                identificationSection.classList.add('hidden');
+                idType.required = false;
+                idNumber.required = false;
+                
+                // Clear validation messages when hiding
+                const errorElements = identificationSection.querySelectorAll('.text-red-500');
+                errorElements.forEach(el => el.remove());
+            }
+            
+            idType.required = required;
+            idNumber.required = required;
+            identificationSection.classList.toggle('hidden', !required);
+            
+            // Clear validation messages when hiding
+            if (!required) {
+                const errorElements = identificationSection.querySelectorAll('.text-red-500');
+                errorElements.forEach(el => el.remove());
+            }
+        }
+
+        // Check if this is a self-booking (non-guest booking)
+        const isSelfBooking = @json(!old('is_guest_booking') && empty(request()->input('is_guest_booking')));
+        
+        // If self-booking, check if current user needs to provide ID
+        if (isSelfBooking) {
+            const currentUserHasId = @json(isset($currentUserHasId) ? $currentUserHasId : false);
+            setIdRequired(!currentUserHasId);
+        }
+
+        // Function to check if a guest needs to provide ID
+        async function checkGuestIdRequirement(guestId) {
+            console.log('Checking ID requirement for guest:', guestId);
+            
+            if (!guestId) {
+                console.log('No guest ID provided, hiding ID section');
+                setIdRequired(false);
+                return;
+            }
+            
+            try {
+                console.log('Fetching guest data from API...');
+                const response = await fetch(`/api/guests/${guestId}`);
+                if (!response.ok) {
+                    console.error('Failed to fetch guest data', response.status, response.statusText);
+                    setIdRequired(false);
+                    return;
+                }
+                
+                const guest = await response.json();
+                console.log('Received guest data:', guest);
+                
+                if (!guest) {
+                    console.log('No guest data received');
+                    setIdRequired(true); // Require ID if no guest data
+                    return;
+                }
+                
+                // Debug: Log the exact ID values
+                console.log('Guest ID type:', typeof guest.identification_type, 'value:', `'${guest.identification_type}'`);
+                console.log('Guest ID number:', typeof guest.identification_number, 'value:', `'${guest.identification_number}'`);
+                
+                // Check if guest has valid ID information
+                const hasValidId = guest.identification_type && 
+                                 guest.identification_type.toString().trim() !== '' && 
+                                 guest.identification_number && 
+                                 guest.identification_number.toString().trim() !== '';
+                
+                console.log('Has valid ID?', hasValidId);
+                
+                // Only require ID if guest doesn't have valid ID info
+                setIdRequired(!hasValidId);
+                
+            } catch (error) {
+                console.error('Error checking guest ID requirement:', error);
+                setIdRequired(false);
+            }
+        }
+
+        // When a guest is selected from search
+        if (userIdInput) {
+            // Handle changes to the user selection
+            const handleUserChange = () => {
+                const guestId = userIdInput.value;
+                console.log('User ID changed:', guestId);
+                if (guestId) {
+                    checkGuestIdRequirement(guestId);
+                } else {
+                    setIdRequired(false);
+                }
+            };
+            
+            // Set up observer for changes to the user ID input
+            const observer = new MutationObserver(handleUserChange);
+            observer.observe(userIdInput, { 
+                attributes: true, 
+                attributeFilter: ['value'] 
+            });
+            
+            // Also check on page load if a guest is already selected
+            if (userIdInput.value) {
+                console.log('Initial user ID found:', userIdInput.value);
+                handleUserChange();
+            }
+            
+            // Handle search input and results
+            if (searchInput && searchResults) {
+                console.log('Setting up search result click handler');
+                // Handle click on search results
+                searchResults.addEventListener('click', function(e) {
+                    console.log('Search results clicked');
+                    const resultItem = e.target.closest('.search-result-item');
+                    if (resultItem) {
+                        console.log('Search result item clicked');
+                        selectOption(resultItem);
+                    }
+                });
+                
+                // Handle keyboard navigation in search results
+                searchResults.addEventListener('keydown', function(e) {
+                    const active = document.activeElement;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        if (active.classList.contains('search-result-item')) {
+                            console.log('Search result item selected via keyboard');
+                            selectOption(active);
+                        }
+                    }
+                });
+            }
         }
     });
 </script>
@@ -295,34 +755,42 @@
 
                         if (guests.length === 0) {
                             console.log('No guests found');
-                            searchResults.innerHTML = '<div class="p-2 text-gray-500">No guests found</div>';
+                            searchResults.innerHTML = `
+                                <div class="p-2 text-gray-500">No guests found</div>
+                                <div class="p-2">
+                                    <button type="button" class="text-sm text-indigo-600 hover:text-indigo-800" id="createGuestFromResults">
+                                        + {{ __('Create new guest') }}
+                                    </button>
+                                </div>
+                            `;
                             showSearchResults();
+                            const createBtn = document.getElementById('createGuestFromResults');
+                            if (createBtn) {
+                                createBtn.addEventListener('click', function() {
+                                    openGuestModal();
+                                });
+                            }
                             return;
                         }
 
-                        let resultsHtml = '';
-                        guests.forEach((guest, index) => {
-                            const displayText = `${guest.name} (${guest.email})${guest.phone ? ' - ' + guest.phone : ''}`;
-                            const isSelected = index === 0 ? 'true' : 'false';
-                            resultsHtml += `
-                                <div role="option" 
-                                     id="guest-option-${index}"
-                                     tabindex="-1"
-                                     aria-selected="${isSelected}"
-                                     data-id="${guest.id}"
-                                     data-display="${displayText.replace(/"/g, '&quot;')}"
-                                     class="border-b border-gray-100">
-                                    ${displayText}
-                                </div>
-                            `;
-                        });
+                        // Clear previous results
+                        searchResults.innerHTML = '';
                         
-                        searchResults.innerHTML = resultsHtml;
+                        // Create result items
+                        guests.forEach(guest => {
+                            const resultItem = document.createElement('div');
+                            resultItem.className = 'search-result-item p-2 hover:bg-gray-100 cursor-pointer';
+                            resultItem.textContent = `${guest.name} (${guest.email})`;
+                            resultItem.setAttribute('data-id', guest.id);
+                            // Store the full guest data in a data attribute
+                            resultItem.setAttribute('data-guest', JSON.stringify(guest));
+                            searchResults.appendChild(resultItem);
+                        });
                         currentFocus = -1;
                         showSearchResults();
                         
                         // Set up keyboard navigation
-                        const options = searchResults.querySelectorAll('[role="option"]');
+                        const options = searchResults.querySelectorAll('.search-result-item');
                         options.forEach((option, index) => {
                             option.addEventListener('click', function() {
                                 selectOption(this);
@@ -351,16 +819,6 @@
             }, 300);
         });
 
-        // Function to select an option
-        function selectOption(option) {
-            const guestId = option.getAttribute('data-id');
-            const displayText = option.getAttribute('data-display');
-            
-            userIdInput.value = guestId;
-            searchInput.value = displayText;
-            hideSearchResults();
-            searchInput.focus();
-        }
         
         // Handle click on search result
         searchResults.addEventListener('click', function(e) {
@@ -468,7 +926,90 @@
                 checkOutInput.min = today;
             }
         }
+        // Create Guest modal handlers
+        const openCreateGuestModalBtn = document.getElementById('openCreateGuestModal');
+        if (openCreateGuestModalBtn) {
+            openCreateGuestModalBtn.addEventListener('click', openGuestModal);
+        }
+
+        function openGuestModal() {
+            const modal = document.getElementById('createGuestModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeGuestModal() {
+            const modal = document.getElementById('createGuestModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        window.openGuestModal = openGuestModal;
+        window.closeGuestModal = closeGuestModal;
+
+        const createGuestForm = document.getElementById('createGuestForm');
+        if (createGuestForm) {
+            createGuestForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const name = (document.getElementById('new_guest_name') || {}).value || '';
+                const email = (document.getElementById('new_guest_email') || {}).value || '';
+                const phone = (document.getElementById('new_guest_phone') || {}).value || '';
+
+                const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                try {
+                    const res = await fetch('{{ route('guests.quick-create') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': token,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify({ name, email, phone })
+                    });
+                    if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(text || 'Failed to create guest');
+                    }
+                    const guest = await res.json();
+                    // Auto-select created guest
+                    userIdInput.value = guest.id;
+                    searchInput.value = `${guest.name} (${guest.email})${guest.phone ? ' - ' + guest.phone : ''}`;
+                    hideSearchResults();
+                    closeGuestModal();
+                } catch (err) {
+                    console.error('Create guest error:', err);
+                    alert('Failed to create guest. Please check the details and try again.');
+                }
+            });
+        }
     });
 </script>
+
+<!-- Inline Create Guest Modal -->
+<div id="createGuestModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 hidden" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-lg font-semibold">{{ __('Create New Guest') }}</h3>
+            <button type="button" class="text-gray-500 hover:text-gray-700" onclick="closeGuestModal()" aria-label="Close">✕</button>
+        </div>
+        <form id="createGuestForm" class="px-6 py-4">
+            <div class="mb-4">
+                <label for="new_guest_name" class="block text-sm font-medium text-gray-700">{{ __('Full Name') }}</label>
+                <input type="text" id="new_guest_name" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required>
+            </div>
+            <div class="mb-4">
+                <label for="new_guest_email" class="block text-sm font-medium text-gray-700">{{ __('Email') }}</label>
+                <input type="email" id="new_guest_email" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required>
+            </div>
+            <div class="mb-6">
+                <label for="new_guest_phone" class="block text-sm font-medium text-gray-700">{{ __('Phone (optional)') }}</label>
+                <input type="tel" id="new_guest_phone" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3">
+            </div>
+            <div class="flex items-center justify-end space-x-3">
+                <button type="button" class="px-4 py-2 rounded border border-gray-300 bg-white text-gray-700" onclick="closeGuestModal()">{{ __('Cancel') }}</button>
+                <button type="submit" class="px-4 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700">{{ __('Create & Select') }}</button>
+            </div>
+        </form>
+    </div>
+</div>
 @endpush
 @endsection

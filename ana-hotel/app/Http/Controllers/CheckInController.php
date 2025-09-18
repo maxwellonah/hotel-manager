@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use App\Models\Room;
+use App\Models\Payment;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -18,7 +19,7 @@ class CheckInController extends Controller
     {
         $today = Carbon::today();
         
-        $pendingCheckIns = Booking::with(['room.roomType', 'user'])
+        $pendingCheckIns = Booking::with(['room.roomType', 'user', 'payments'])
             ->where('status', 'confirmed')
             ->whereDate('check_in', '<=', $today)
             ->whereDate('check_out', '>=', $today)
@@ -30,8 +31,13 @@ class CheckInController extends Controller
             ->whereDate('check_out', '>=', $today)
             ->orderBy('check_out')
             ->paginate(10, ['*'], 'checked_in_page');
+        
+        // All bookings across all days (to allow accepting payment even if not checking in today)
+        $allBookings = Booking::with(['room.roomType', 'user', 'payments'])
+            ->orderByDesc('check_in')
+            ->paginate(10, ['*'], 'all_page');
             
-        return view('check-in.index', compact('pendingCheckIns', 'checkedInGuests'));
+        return view('check-in.index', compact('pendingCheckIns', 'checkedInGuests', 'allBookings'));
     }
 
     /**
@@ -46,8 +52,12 @@ class CheckInController extends Controller
             return redirect()->route('check-in.index')
                 ->with('error', 'Only confirmed bookings can be checked in.');
         }
-        
-        return view('check-in.process', compact('booking'));
+
+        $booking->load('user');
+        return view('check-in.process', [
+            'booking' => $booking,
+            'guestHasId' => !empty($booking->user->identification_type) && !empty($booking->user->identification_number),
+        ]);
     }
 
     /**
@@ -64,19 +74,36 @@ class CheckInController extends Controller
                 ->with('error', 'Only confirmed bookings can be checked in.');
         }
         
-        $validated = $request->validate([
-            'identification_number' => 'required|string|max:50',
-            'identification_type' => 'required|in:passport,id_card,driving_license',
+        $user = $booking->user;
+        $requireId = empty($user->identification_type) || empty($user->identification_number);
+
+        $rules = [
             'notes' => 'nullable|string|max:1000',
-        ]);
+        ];
+        if ($requireId) {
+            $rules['identification_type'] = 'required|in:passport,id_card,driving_license';
+            $rules['identification_number'] = 'required|string|max:50';
+        } else {
+            $rules['identification_type'] = 'nullable|in:passport,id_card,driving_license';
+            $rules['identification_number'] = 'nullable|string|max:50';
+        }
+        $validated = $request->validate($rules);
         
+        // Persist ID to user if newly provided
+        if ($requireId && isset($validated['identification_type'], $validated['identification_number'])) {
+            $user->update([
+                'identification_type' => $validated['identification_type'],
+                'identification_number' => $validated['identification_number'],
+            ]);
+        }
+
         // Update booking status
         $booking->update([
             'status' => 'checked_in',
             'check_in_notes' => $validated['notes'] ?? null,
             'checked_in_at' => now(),
-            'identification_number' => $validated['identification_number'],
-            'identification_type' => $validated['identification_type'],
+            'identification_number' => $requireId ? $validated['identification_number'] : $user->identification_number,
+            'identification_type' => $requireId ? $validated['identification_type'] : $user->identification_type,
         ]);
         
         // Update room status
@@ -130,6 +157,15 @@ class CheckInController extends Controller
                 ]);
             }
             
+            // Also remove from All Bookings/Confirm Payments by deleting the booking record
+            // Clean up any pending payments tied to this booking before deletion; keep completed payments for audit
+            Payment::where('booking_id', $booking->id)
+                ->where('status', '!=', Payment::STATUS_COMPLETED)
+                ->delete();
+
+            // Finally delete the booking record
+            $booking->delete();
+
             \DB::commit();
             
             \Log::info('Check-in cancelled successfully', [
@@ -137,7 +173,7 @@ class CheckInController extends Controller
             ]);
             
             return redirect()->route('check-in.index')
-                ->with('success', 'Check-in has been cancelled successfully.');
+                ->with('success', 'Check-in has been cancelled and the booking has been removed.');
                 
         } catch (\Exception $e) {
             \DB::rollBack();
@@ -185,6 +221,7 @@ class CheckInController extends Controller
         $validated = $request->validate([
             'additional_nights' => 'required|integer|min:1|max:30',
             'notes' => 'nullable|string|max:1000',
+            'payment_method' => 'nullable|in:cash,credit_card,debit_card,bank_transfer',
         ]);
 
         // Calculate new checkout date and additional cost
@@ -200,9 +237,16 @@ class CheckInController extends Controller
             'special_requests' => $booking->special_requests . "\n\nStay extended by {$additionalNights} night(s) on " . now()->format('Y-m-d') . ". " . ($validated['notes'] ?? ''),
         ]);
 
-        // Create a payment record if needed
-        // You may want to implement this based on your payment system
-        // Payment::create([...]);
+        // Record payment for the extension so revenue includes the added amount
+        Payment::create([
+            'booking_id' => $booking->id,
+            'transaction_reference' => 'EXT' . strtoupper(uniqid()),
+            'amount' => $additionalCost,
+            'payment_method' => $validated['payment_method'] ?? 'cash',
+            'status' => Payment::STATUS_COMPLETED,
+            'notes' => "Extension payment for {$additionalNights} night(s)",
+            'paid_at' => now(),
+        ]);
 
         return redirect()->route('check-in.index')
             ->with('success', "Guest's stay has been extended by {$additionalNights} night(s) until {$newCheckOut->format('M d, Y')}.");

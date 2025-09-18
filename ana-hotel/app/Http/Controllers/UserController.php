@@ -66,7 +66,19 @@ class UserController extends Controller
      */
     public function show(User $user)
     {
-        return view('admin.users.show', compact('user'));
+        // Eager-load bookings with room and payments for management actions
+        $user->load([
+            'bookings' => function ($q) {
+                $q->with(['room.roomType', 'payments' => function ($p) {
+                    $p->orderByDesc('created_at');
+                }])->orderByDesc('created_at');
+            }
+        ]);
+
+        return view('admin.users.show', [
+            'user' => $user,
+            'bookings' => $user->bookings,
+        ]);
     }
 
     /**
@@ -101,6 +113,8 @@ class UserController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
             'role' => ['required', 'in:admin,receptionist,guest'],
+            'identification_type' => ['nullable', 'in:passport,id_card,driving_license'],
+            'identification_number' => ['nullable', 'string', 'max:100'],
         ]);
 
         $updateData = [
@@ -108,6 +122,8 @@ class UserController extends Controller
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
             'role' => $validated['role'],
+            'identification_type' => $validated['identification_type'] ?? $user->identification_type,
+            'identification_number' => $validated['identification_number'] ?? $user->identification_number,
         ];
 
         if (!empty($validated['password'])) {
@@ -137,5 +153,37 @@ class UserController extends Controller
 
         return redirect()->route('users.index')
             ->with('success', 'User deleted successfully.');
+    }
+
+    /**
+     * Quickly create a new guest (AJAX) for bookings flow.
+     * Only accessible to admin and receptionist (route protected).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function quickCreateGuest(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'phone' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? null,
+            // Generate a random password; guest can reset later
+            'password' => \Illuminate\Support\Str::random(32),
+            'role' => 'guest',
+        ]);
+
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+        ], 201);
     }
 }

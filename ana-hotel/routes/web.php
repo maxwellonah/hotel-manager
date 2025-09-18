@@ -9,6 +9,10 @@ use App\Http\Controllers\RoomController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\Reception\GuestManagementController;
+use App\Http\Controllers\HousekeepingTaskController;
+use App\Http\Controllers\HousekeepingController;
+use Illuminate\Http\Request;
 
 /*
 |--------------------------------------------------------------------------
@@ -23,6 +27,16 @@ use App\Http\Controllers\ReportController;
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+// Quick-create Guest (AJAX, returns JSON)
+Route::post('/guests/quick-create', [UserController::class, 'quickCreateGuest'])
+    ->name('guests.quick-create')
+    ->middleware(['auth', 'role:admin,receptionist']);
+
+// Receptionist Guest Management
+Route::prefix('reception')->name('reception.')->middleware(['auth', 'role:admin,receptionist'])->group(function () {
+    Route::get('/guests', [GuestManagementController::class, 'index'])->name('guests.index');
 });
 
 // Dashboard Route
@@ -99,6 +113,54 @@ Route::resource('bookings', BookingController::class)
 Route::post('/bookings/{booking}/early-checkin', [BookingController::class, 'earlyCheckIn'])
     ->name('bookings.early-checkin')
     ->middleware(['auth', 'role:admin,receptionist']);
+
+// Accept Payment Route (mark booking payment as confirmed without checking in)
+Route::post('/bookings/{booking}/accept-payment', [BookingController::class, 'acceptPayment'])
+    ->name('bookings.accept-payment')
+    ->middleware(['auth', 'role:admin,receptionist']);
+
+// Admin: Create a pending payment for a booking (for testing/simulation)
+Route::post('/admin/bookings/{booking}/payments/pending', [BookingController::class, 'createPendingPayment'])
+    ->name('admin.bookings.create-pending-payment')
+    ->middleware(['auth', 'role:admin']);
+
+// Housekeeping Tasks (basic routes to satisfy dashboard links)
+Route::prefix('housekeeping-tasks')->name('housekeeping-tasks.')->middleware(['auth'])->group(function () {
+    Route::get('/', [HousekeepingTaskController::class, 'index'])->name('index');
+    Route::get('/create', [HousekeepingTaskController::class, 'create'])->name('create');
+    Route::post('/', [HousekeepingTaskController::class, 'store'])->name('store');
+    Route::get('/{housekeeping_task}', [HousekeepingTaskController::class, 'show'])->name('show');
+    Route::post('/{housekeeping_task}/complete', [HousekeepingTaskController::class, 'complete'])
+        ->name('complete');
+    Route::post('/{housekeeping_task}/cancel', [HousekeepingTaskController::class, 'cancel'])
+        ->name('cancel')
+        ->middleware('role:admin');
+});
+
+// Housekeeping Room Status page
+Route::get('/housekeeping/rooms', [HousekeepingController::class, 'rooms'])
+    ->name('housekeeping.rooms')
+    ->middleware(['auth', 'role:housekeeping,admin']);
+
+// Housekeeping Dashboard (admin overview of all housekeepers and assignments)
+Route::get('/housekeeping/dashboard', [HousekeepingController::class, 'dashboard'])
+    ->name('housekeeping.dashboard')
+    ->middleware(['auth', 'role:admin']);
+
+// Export filtered housekeeping tasks as CSV (admin only)
+Route::get('/housekeeping/dashboard/export', [HousekeepingController::class, 'exportTasks'])
+    ->name('housekeeping.dashboard.export')
+    ->middleware(['auth', 'role:admin']);
+
+// Unassigned rooms (admin only)
+Route::get('/housekeeping/unassigned-rooms', [HousekeepingController::class, 'unassignedRooms'])
+    ->name('housekeeping.unassigned-rooms')
+    ->middleware(['auth', 'role:admin']);
+
+// Mark today's housekeeping task done (admin only)
+Route::post('/housekeeping/tasks/{room}/{user}/complete', [HousekeepingController::class, 'completeTodayTask'])
+    ->name('housekeeping.tasks.complete-today')
+    ->middleware(['auth', 'role:admin']);
 
 // Check-in and Check-out Routes
 Route::prefix('check-in')->name('check-in.')->middleware(['auth'])->group(function () {

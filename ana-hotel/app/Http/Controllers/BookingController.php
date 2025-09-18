@@ -296,4 +296,91 @@ class BookingController extends Controller
         return redirect()->route('bookings.index')
             ->with('success', 'Booking deleted successfully!');
     }
+
+    /**
+     * Accept payment for a booking (mark as paid) without checking the guest in.
+     * This helps record the day money was received for clearer reports.
+     *
+     * @param  int  $bookingId
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function acceptPayment($bookingId)
+    {
+        $booking = \App\Models\Booking::with('payments')->findOrFail($bookingId);
+
+        // Only admins/receptionists can reach here via middleware; double-check state
+        if ($booking->status === 'checked_in') {
+            return back()->with('error', 'Guest is already checked in.');
+        }
+
+        // Ensure there is at least one payment we can confirm. If none is completed yet,
+        // attempt to confirm the most recent pending payment.
+        $completedPayment = $booking->payments()
+            ->where('status', \App\Models\Payment::STATUS_COMPLETED)
+            ->latest('paid_at')
+            ->first();
+
+        if (!$completedPayment) {
+            $pendingPayment = $booking->payments()
+                ->where('status', \App\Models\Payment::STATUS_PENDING)
+                ->latest()
+                ->first();
+
+            if ($pendingPayment) {
+                // Mark the pending payment as completed now
+                $pendingPayment->status = \App\Models\Payment::STATUS_COMPLETED;
+                $pendingPayment->paid_at = now();
+                $pendingPayment->save();
+            } else {
+                // No payment record at all — create a manual completion entry to keep audit trail
+                \App\Models\Payment::create([
+                    'booking_id' => $booking->id,
+                    'transaction_reference' => 'MANUAL' . strtoupper(uniqid()),
+                    'amount' => $booking->total_price ?? 0,
+                    'payment_method' => 'cash',
+                    'status' => \App\Models\Payment::STATUS_COMPLETED,
+                    'notes' => 'Manually confirmed by staff (no prior payment record).',
+                    'paid_at' => now(),
+                ]);
+            }
+        }
+
+        // Mark booking as paid and stamp confirmation time
+        $booking->payment_status = 'paid';
+        $booking->payment_confirmed_at = now();
+        $booking->save();
+
+        return back()->with('success', 'Payment accepted and recorded successfully.');
+    }
+
+    /**
+     * Admin: Create a pending payment for a booking to simulate/test payment flow.
+     *
+     * @param int $bookingId
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function createPendingPayment($bookingId)
+    {
+        $booking = \App\Models\Booking::with('payments')->findOrFail($bookingId);
+
+        // Prevent creating if already paid fully or guest is checked in
+        if ($booking->status === 'checked_in') {
+            return back()->with('error', 'Cannot create a pending payment for a checked-in booking.');
+        }
+        if ($booking->payment_status === 'paid') {
+            return back()->with('error', 'Booking is already marked as paid.');
+        }
+
+        // Create a small pending payment entry
+        \App\Models\Payment::create([
+            'booking_id' => $booking->id,
+            'transaction_reference' => 'PEND' . strtoupper(uniqid()),
+            'amount' => $booking->total_price ?? 0,
+            'payment_method' => 'cash',
+            'status' => \App\Models\Payment::STATUS_PENDING,
+            'notes' => 'Created by admin for testing/simulation from UI',
+        ]);
+
+        return back()->with('success', 'Pending payment created for this booking.');
+    }
 }

@@ -15,7 +15,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        // Generate daily housekeeping tasks just after midnight server time
+        $schedule->command('housekeeping:generate-daily')->dailyAt('00:10');
     }
 
     /**

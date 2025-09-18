@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Booking;
+use App\Models\Payment;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -65,7 +66,6 @@ class CheckOutController extends Controller
         }
         
         $validated = $request->validate([
-            'payment_method' => 'required|in:cash,credit_card,debit_card,bank_transfer',
             'additional_charges' => 'nullable|array',
             'additional_charges.*.description' => 'required_with:additional_charges|string|max:255',
             'additional_charges.*.amount' => 'required_with:additional_charges|numeric|min:0',
@@ -82,7 +82,7 @@ class CheckOutController extends Controller
             }
         }
         
-        // Update booking status
+        // Update booking status (do not write payment_method on bookings)
         $booking->update([
             'status' => 'checked_out',
             'checked_out_at' => now(),
@@ -90,11 +90,21 @@ class CheckOutController extends Controller
             'additional_charges' => $validated['additional_charges'] ?? [],
             'additional_charges_total' => $additionalChargesTotal,
             'total_paid' => $booking->total_price + $additionalChargesTotal,
-            'payment_method' => $validated['payment_method'],
+        ]);
+
+        // Record a completed payment for checkout
+        Payment::create([
+            'booking_id' => $booking->id,
+            'transaction_reference' => 'CHKOUT' . strtoupper(uniqid()),
+            'amount' => $booking->total_price + $additionalChargesTotal,
+            'status' => Payment::STATUS_COMPLETED,
+            'notes' => 'Payment recorded at checkout',
+            'paid_at' => now(),
         ]);
         
-        // Update room status to 'dirty' for housekeeping
-        $booking->room->update(['status' => 'dirty']);
+        // Update room status for housekeeping
+        // Use an allowed value for the rooms.status column (e.g., 'cleaning')
+        $booking->room->update(['status' => 'cleaning']);
         
         return redirect()->route('check-out.index')
             ->with('success', 'Guest has been checked out successfully. Room marked for cleaning.');

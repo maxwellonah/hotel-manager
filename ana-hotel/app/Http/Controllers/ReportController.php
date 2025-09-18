@@ -44,10 +44,10 @@ class ReportController extends Controller
         $totalBookings = Booking::whereBetween('created_at', [$startDate, $endDate])
             ->count();
             
-        // Total revenue
-        $totalRevenue = Payment::where('status', 'completed')
-            ->whereBetween('paid_at', [$startDate, $endDate])
-            ->sum('amount');
+        // Total revenue (based on when payment was accepted/confirmed on bookings)
+        $totalRevenue = Booking::where('payment_status', 'paid')
+            ->whereBetween('payment_confirmed_at', [$startDate, $endDate])
+            ->sum('total_price');
             
         // Total rooms
         $totalRooms = Room::count();
@@ -283,56 +283,41 @@ class ReportController extends Controller
             
         $groupBy = $request->input('group_by', 'day');
         
+        // Use payments table for revenue aggregation so extensions (and any partials) count on the day paid
         $useBookings = false;
-        
-        // First, try to get payments data
         $payments = collect();
         
-        // Check if we have any completed payments for non-cancelled bookings
-        $hasPayments = Payment::where('status', 'completed')
-            ->whereBetween('paid_at', [$startDate, $endDate])
-            ->whereHas('booking', function($q) {
-                $q->where('status', '!=', 'cancelled');
-            })
-            ->exists();
-            
-        if ($hasPayments) {
-            $query = Payment::query()
-                ->where('status', 'completed')
-                ->whereBetween('paid_at', [$startDate, $endDate])
-                ->whereHas('booking', function($q) {
-                    $q->where('status', '!=', 'cancelled');
-                })
-                ->with(['booking.room.roomType']);
-                
-            if ($request->filled('room_type')) {
-                $query->whereHas('booking.room', function($q) use ($request) {
-                    $q->where('room_type_id', $request->room_type);
-                });
-            }
-            
-            $payments = $query->get()
-                ->groupBy(function($payment) use ($groupBy) {
-                    return $this->getPeriod($payment->paid_at, $groupBy);
-                });
-        } else {
-            // Fall back to using bookings data if no payments exist
-            $useBookings = true;
+        if ($useBookings) {
             $query = Booking::query()
-                ->whereIn('status', ['checked_in', 'checked_out', 'completed'])
-                ->where('status', '!=', 'cancelled') // Explicitly exclude cancelled bookings
-                ->whereBetween('check_in', [$startDate, $endDate])
+                ->where('payment_status', 'paid')
+                ->whereNotNull('payment_confirmed_at')
+                ->whereBetween('payment_confirmed_at', [$startDate, $endDate])
+                ->where('status', '!=', 'cancelled')
                 ->with(['room.roomType']);
-                
+
             if ($request->filled('room_type')) {
                 $query->whereHas('room', function($q) use ($request) {
                     $q->where('room_type_id', $request->room_type);
                 });
             }
-            
+
             $payments = $query->get()
                 ->groupBy(function($booking) use ($groupBy) {
-                    return $this->getPeriod($booking->check_in, $groupBy);
+                    return $this->getPeriod($booking->payment_confirmed_at, $groupBy);
+                });
+        } else {
+            // Aggregate by actual payments completed in the period
+            $payments = Payment::with(['booking.room.roomType'])
+                ->where('status', 'completed')
+                ->whereBetween('paid_at', [$startDate, $endDate])
+                ->when($request->filled('room_type'), function($q) use ($request) {
+                    $q->whereHas('booking.room', function($qq) use ($request) {
+                        $qq->where('room_type_id', $request->room_type);
+                    });
+                })
+                ->get()
+                ->groupBy(function($payment) use ($groupBy) {
+                    return $this->getPeriod($payment->paid_at, $groupBy);
                 });
         }
         

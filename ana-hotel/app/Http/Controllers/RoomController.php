@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Room;
 use App\Models\RoomType;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -79,7 +80,8 @@ class RoomController extends Controller
     public function edit(Room $room)
     {
         $roomTypes = RoomType::all();
-        return view('admin.rooms.edit', compact('room', 'roomTypes'));
+        $housekeepers = User::where('role', 'housekeeping')->orderBy('name')->get(['id','name']);
+        return view('admin.rooms.edit', compact('room', 'roomTypes', 'housekeepers'));
     }
 
     /**
@@ -97,6 +99,7 @@ class RoomController extends Controller
             'floor' => 'required|integer|min:1',
             'status' => 'required|in:available,occupied,maintenance,cleaning',
             'image' => 'nullable|image|max:2048',
+            'housekeeping_user_id' => 'nullable|exists:users,id',
         ]);
 
         if ($request->hasFile('image')) {

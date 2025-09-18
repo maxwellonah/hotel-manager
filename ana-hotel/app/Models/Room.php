@@ -17,6 +17,7 @@ class Room extends Model
     protected $fillable = [
         'room_number',
         'room_type_id',
+        'housekeeping_user_id',
         'floor',
         'status',
         'description',
@@ -56,6 +57,14 @@ class Room extends Model
     public function housekeepingTasks()
     {
         return $this->hasMany(HousekeepingTask::class);
+    }
+
+    /**
+     * Get the assigned housekeeper (user) for this room.
+     */
+    public function assignedHousekeeper()
+    {
+        return $this->belongsTo(User::class, 'housekeeping_user_id');
     }
 
     /**

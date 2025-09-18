@@ -64,6 +64,12 @@
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
                                         @foreach($pendingCheckIns as $booking)
+                                            @php
+                                                $hasCompletablePayment = $booking->payments && $booking->payments->contains(function ($p) {
+                                                    return in_array($p->status, [\App\Models\Payment::STATUS_COMPLETED, \App\Models\Payment::STATUS_PENDING]);
+                                                });
+                                                $canAccept = $hasCompletablePayment && $booking->status !== 'checked_in' && ($booking->payment_status !== 'paid');
+                                            @endphp
                                             <tr>
                                                 <td class="px-6 py-4 whitespace-nowrap">
                                                     <div class="flex items-center">
@@ -102,6 +108,20 @@
                                                     </div>
                                                 </td>
                                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                                    @if($canAccept)
+                                                        <form action="{{ route('bookings.accept-payment', $booking->id) }}" method="POST" class="inline" onsubmit="return confirm('Confirm/Accept payment for this booking and record today as paid date?');">
+                                                            @csrf
+                                                            <button type="submit" class="inline-flex items-center px-3 py-1.5 rounded bg-indigo-600 text-white text-xs hover:bg-indigo-700">Accept Payment</button>
+                                                        </form>
+                                                    @else
+                                                        @php $noPayments = !$booking->payments || $booking->payments->isEmpty(); @endphp
+                                                        @if($noPayments && auth()->check() && auth()->user()->role === 'admin' && $booking->status !== 'checked_in' && ($booking->payment_status !== 'paid'))
+                                                            <form action="{{ route('admin.bookings.create-pending-payment', $booking->id) }}" method="POST" class="inline" onsubmit="return confirm('Create a pending payment record for this booking?');">
+                                                                @csrf
+                                                                <button type="submit" class="inline-flex items-center px-3 py-1.5 rounded bg-yellow-600 text-white text-xs hover:bg-yellow-700">Create Pending Payment</button>
+                                                            </form>
+                                                        @endif
+                                                    @endif
                                                     <a href="{{ route('check-in.process', $booking) }}" class="text-indigo-600 hover:text-indigo-900">
                                                         Check-in
                                                     </a>
@@ -126,6 +146,100 @@
                             </div>
                             <div class="px-4 py-3 bg-gray-50 sm:px-6">
                                 {{ $pendingCheckIns->links() }}
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
+                <!-- All Bookings (for payment confirmation without check-in) -->
+                <div class="mt-12">
+                    <div class="px-4 py-5 sm:px-6 bg-gray-50 rounded-t-lg">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900">
+                            All Bookings (Confirm Payments)
+                        </h3>
+                        <p class="mt-1 max-w-2xl text-sm text-gray-500">
+                            View all bookings across days. You can accept/confirm payment for a booking even if the guest hasn't checked in yet.
+                        </p>
+                    </div>
+
+                    <div class="bg-white shadow overflow-hidden sm:rounded-b-lg">
+                        @if($allBookings->isEmpty())
+                            <div class="px-4 py-5 sm:px-6">
+                                <p class="text-gray-500">No bookings found.</p>
+                            </div>
+                        @else
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
+                                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        @foreach($allBookings as $booking)
+                                            @php
+                                                $hasCompletablePayment = $booking->payments && $booking->payments->contains(function ($p) {
+                                                    return in_array($p->status, [\App\Models\Payment::STATUS_COMPLETED, \App\Models\Payment::STATUS_PENDING]);
+                                                });
+                                                $noPayments = !$booking->payments || $booking->payments->isEmpty();
+                                                // Allow accepting payment even if there are no payment rows yet; backend will create a manual record
+                                                $canAccept = ($hasCompletablePayment || $noPayments) && $booking->status !== 'checked_in' && ($booking->payment_status !== 'paid');
+                                            @endphp
+                                            <tr>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {{ $booking->user->name ?? 'Guest' }}
+                                                    <div class="text-xs text-gray-500">{{ $booking->user->email ?? '' }}</div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $booking->booking_reference }}</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    @if($booking->room)
+                                                        {{ $booking->room->roomType->name ?? 'Room' }} #{{ $booking->room->id }}
+                                                    @else
+                                                        -
+                                                    @endif
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {{ optional($booking->check_in)->format('Y-m-d') }} → {{ optional($booking->check_out)->format('Y-m-d') }}
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ in_array($booking->status, ['confirmed','checked_in']) ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
+                                                        {{ ucfirst(str_replace('_',' ', $booking->status)) }}
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ $booking->payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
+                                                            {{ ucfirst(str_replace('_',' ', $booking->payment_status ?? 'pending')) }}
+                                                        </span>
+                                                        @if($booking->payment_confirmed_at)
+                                                            <span class="text-xs text-gray-500">on {{ optional($booking->payment_confirmed_at)->format('Y-m-d H:i') }}</span>
+                                                        @endif
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <div class="space-x-2">
+                                                        @if($canAccept)
+                                                            <form action="{{ route('bookings.accept-payment', $booking->id) }}" method="POST" class="inline" onsubmit="return confirm('Confirm/Accept payment for this booking and record today as paid date?');">
+                                                                @csrf
+                                                                <button type="submit" class="inline-flex items-center px-3 py-1.5 rounded bg-indigo-600 text-white text-xs hover:bg-indigo-700">Accept Payment</button>
+                                                            </form>
+                                                        @endif
+                                                        <a href="{{ route('bookings.show', $booking) }}" class="text-gray-600 hover:text-gray-900 text-xs">View</a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="px-4 py-3 bg-gray-50 sm:px-6">
+                                {{ $allBookings->links() }}
                             </div>
                         @endif
                     </div>

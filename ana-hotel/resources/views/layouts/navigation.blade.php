@@ -44,7 +44,7 @@
                             </x-nav-link>
                         @elseif(auth()->user()->role === 'housekeeping')
                             <!-- Housekeeping Menu Items -->
-                            <x-nav-link :href="route('housekeeping.tasks.index')" :active="request()->is('housekeeping/tasks*')">
+                            <x-nav-link :href="route('housekeeping-tasks.index')" :active="request()->is('housekeeping/tasks*')">
                                 {{ __('My Tasks') }}
                             </x-nav-link>
                             <x-nav-link :href="route('housekeeping.rooms')" :active="request()->is('housekeeping/rooms*')">
@@ -190,7 +190,7 @@
                         {{ __('Check-out') }}
                     </x-responsive-nav-link>
                 @elseif(auth()->user()->role === 'housekeeping')
-                    <x-responsive-nav-link :href="route('housekeeping.tasks.index')" :active="request()->is('housekeeping/tasks*')">
+                    <x-responsive-nav-link :href="route('housekeeping-tasks.index')" :active="request()->is('housekeeping/tasks*')">
                         {{ __('My Tasks') }}
                     </x-responsive-nav-link>
                     <x-responsive-nav-link :href="route('housekeeping.rooms')" :active="request()->is('housekeeping/rooms*')">

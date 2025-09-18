@@ -34,6 +34,7 @@ class Booking extends Model
         'checked_out_at',
         'cancelled_at',
         'is_early_checkin',
+        'payment_confirmed_at',
     ];
 
     /**
@@ -78,6 +79,7 @@ class Booking extends Model
         'checked_in_at',
         'checked_out_at',
         'cancelled_at',
+        'payment_confirmed_at',
     ];
 
     /**

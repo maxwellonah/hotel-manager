@@ -30,7 +30,14 @@ class User extends Authenticatable
         'country',
         'postal_code',
         'profile_photo_path',
-        'email_verified_at'
+        'email_verified_at',
+        'identification_type',
+        'identification_number',
+    ];
+    
+    protected $attributes = [
+        'identification_type' => null,
+        'identification_number' => null,
     ];
 
     /**
@@ -89,6 +96,14 @@ class User extends Authenticatable
         return $this->profile_photo_path
                     ? asset('storage/'.$this->profile_photo_path)
                     : $this->defaultProfilePhotoUrl();
+    }
+
+    /**
+     * Rooms assigned to this user as housekeeper.
+     */
+    public function assignedRooms()
+    {
+        return $this->hasMany(Room::class, 'housekeeping_user_id');
     }
 
     /**

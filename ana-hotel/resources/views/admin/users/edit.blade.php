@@ -50,6 +50,39 @@
                             @enderror
                         </div>
 
+                        <!-- Identification Type -->
+                        <div>
+                            <label for="identification_type" class="block text-sm font-medium text-gray-700">ID Type</label>
+                            <select name="identification_type" id="identification_type" 
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">—</option>
+                                <option value="passport" {{ old('identification_type', $user->identification_type) === 'passport' ? 'selected' : '' }}>Passport</option>
+                                <option value="id_card" {{ old('identification_type', $user->identification_type) === 'id_card' ? 'selected' : '' }}>National ID Card</option>
+                                <option value="driving_license" {{ old('identification_type', $user->identification_type) === 'driving_license' ? 'selected' : '' }}>Driver's License</option>
+                            </select>
+                            @error('identification_type')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <!-- Identification Number (masked with show toggle) -->
+                        <div class="md:col-span-2">
+                            <label for="identification_number" class="block text-sm font-medium text-gray-700">ID/Passport Number</label>
+                            <div class="relative">
+                                <input type="password" name="identification_number" id="identification_number" 
+                                       class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 pr-20 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                       value="{{ old('identification_number', $user->identification_number) }}" autocomplete="new-password">
+                                <button type="button" id="toggle-id-visibility" 
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 border border-gray-300">
+                                    Show
+                                </button>
+                            </div>
+                            @error('identification_number')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                            <p class="mt-1 text-xs text-gray-500">Masked for privacy. Click Show to reveal temporarily.</p>
+                        </div>
+
                         <!-- Role -->
                         <div>
                             <label for="role" class="block text-sm font-medium text-gray-700">Role *</label>
@@ -113,3 +146,23 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const input = document.getElementById('identification_number');
+  const btn = document.getElementById('toggle-id-visibility');
+  if (input && btn) {
+    btn.addEventListener('click', function () {
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = 'Hide';
+      } else {
+        input.type = 'password';
+        btn.textContent = 'Show';
+      }
+    });
+  }
+});
+</script>
+@endpush

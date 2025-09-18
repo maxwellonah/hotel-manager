@@ -46,6 +46,23 @@
                             @enderror
                         </div>
 
+                        <!-- Assigned Housekeeper -->
+                        <div>
+                            <label for="housekeeping_user_id" class="block text-sm font-medium text-gray-700">Assigned Housekeeper</label>
+                            <select name="housekeeping_user_id" id="housekeeping_user_id" 
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">Unassigned</option>
+                                @foreach($housekeepers as $hk)
+                                    <option value="{{ $hk->id }}" {{ (string)old('housekeeping_user_id', (string)$room->housekeeping_user_id) === (string)$hk->id ? 'selected' : '' }}>
+                                        {{ $hk->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('housekeeping_user_id')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
                         <!-- Floor -->
                         <div>
                             <label for="floor" class="block text-sm font-medium text-gray-700">Floor *</label>

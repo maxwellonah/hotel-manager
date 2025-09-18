@@ -91,26 +91,37 @@
 
                         <div class="border-t border-gray-200 px-4 py-5 sm:p-6">
                             <div class="grid grid-cols-6 gap-6">
-                                <div class="col-span-6 sm:col-span-3">
-                                    <label for="identification_type" class="block text-sm font-medium text-gray-700">
-                                        ID Type <span class="text-red-500">*</span>
-                                    </label>
-                                    <select id="identification_type" name="identification_type" required
-                                        class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                                        <option value="">Select ID Type</option>
-                                        <option value="passport">Passport</option>
-                                        <option value="id_card">National ID Card</option>
-                                        <option value="driving_license">Driver's License</option>
-                                    </select>
-                                </div>
+                                @if(!$guestHasId)
+                                    <div class="col-span-6 sm:col-span-3">
+                                        <label for="identification_type" class="block text-sm font-medium text-gray-700">
+                                            ID Type <span class="text-red-500">*</span>
+                                        </label>
+                                        <select id="identification_type" name="identification_type" required
+                                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                            <option value="">Select ID Type</option>
+                                            <option value="passport">Passport</option>
+                                            <option value="id_card">National ID Card</option>
+                                            <option value="driving_license">Driver's License</option>
+                                        </select>
+                                    </div>
 
-                                <div class="col-span-6 sm:col-span-3">
-                                    <label for="identification_number" class="block text-sm font-medium text-gray-700">
-                                        ID/Passport Number <span class="text-red-500">*</span>
-                                    </label>
-                                    <input type="text" name="identification_number" id="identification_number" required
-                                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
-                                </div>
+                                    <div class="col-span-6 sm:col-span-3">
+                                        <label for="identification_number" class="block text-sm font-medium text-gray-700">
+                                            ID/Passport Number <span class="text-red-500">*</span>
+                                        </label>
+                                        <input type="text" name="identification_number" id="identification_number" required
+                                            class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                                    </div>
+                                @else
+                                    <div class="col-span-6 sm:col-span-3">
+                                        <label class="block text-sm font-medium text-gray-700">ID Type</label>
+                                        <div class="mt-1 text-sm text-gray-900">{{ ucfirst(str_replace('_',' ', $booking->user->identification_type)) }}</div>
+                                    </div>
+                                    <div class="col-span-6 sm:col-span-3">
+                                        <label class="block text-sm font-medium text-gray-700">ID/Passport Number</label>
+                                        <div class="mt-1 text-sm text-gray-900">{{ $booking->user->identification_number }}</div>
+                                    </div>
+                                @endif
 
                                 <div class="col-span-6">
                                     <label for="notes" class="block text-sm font-medium text-gray-700">

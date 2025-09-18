@@ -93,7 +93,7 @@
                                     Room Charges
                                 </dt>
                                 <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:text-right">
-                                    ${{ number_format($booking->total_price, 2) }}
+                                    ₦{{ number_format($booking->total_price, 2) }}
                                 </dd>
                                 <dd class="hidden"><!-- Empty for grid layout --></dd>
                             </div>
@@ -142,18 +142,7 @@
                                     Subtotal
                                 </dt>
                                 <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:text-right font-medium" id="subtotal">
-                                    ${{ number_format($booking->total_price, 2) }}
-                                </dd>
-                                <dd class="hidden"><!-- Empty for grid layout --></dd>
-                            </div>
-                            
-                            <!-- Tax -->
-                            <div class="bg-white px-4 py-3 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                                <dt class="text-sm font-medium text-gray-900">
-                                    Tax (10%)
-                                </dt>
-                                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:text-right" id="tax">
-                                    ${{ number_format($booking->total_price * 0.1, 2) }}
+                                    ₦{{ number_format($booking->total_price, 2) }}
                                 </dd>
                                 <dd class="hidden"><!-- Empty for grid layout --></dd>
                             </div>
@@ -164,58 +153,9 @@
                                     Total Amount Due
                                 </dt>
                                 <dd class="mt-1 text-base text-gray-900 sm:mt-0 sm:text-right font-bold" id="total">
-                                    ${{ number_format($booking->total_price * 1.1, 2) }}
+                                    ₦{{ number_format($booking->total_price, 2) }}
                                 </dd>
                                 <dd class="hidden"><!-- Empty for grid layout --></dd>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Payment Method -->
-                    <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-                        <div class="px-4 py-5 sm:px-6">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900">
-                                Payment Method
-                            </h3>
-                        </div>
-                        <div class="border-t border-gray-200 px-4 py-5 sm:p-6">
-                            <div class="grid grid-cols-1 gap-y-6 sm:grid-cols-4 sm:gap-x-4">
-                                <div class="relative flex items-start">
-                                    <div class="flex h-5 items-center">
-                                        <input id="cash" name="payment_method" type="radio" value="cash" 
-                                            class="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500" checked>
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="cash" class="font-medium text-gray-700">Cash</label>
-                                    </div>
-                                </div>
-                                <div class="relative flex items-start">
-                                    <div class="flex h-5 items-center">
-                                        <input id="credit_card" name="payment_method" type="radio" value="credit_card" 
-                                            class="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="credit_card" class="font-medium text-gray-700">Credit Card</label>
-                                    </div>
-                                </div>
-                                <div class="relative flex items-start">
-                                    <div class="flex h-5 items-center">
-                                        <input id="debit_card" name="payment_method" type="radio" value="debit_card" 
-                                            class="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="debit_card" class="font-medium text-gray-700">Debit Card</label>
-                                    </div>
-                                </div>
-                                <div class="relative flex items-start">
-                                    <div class="flex h-5 items-center">
-                                        <input id="bank_transfer" name="payment_method" type="radio" value="bank_transfer" 
-                                            class="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="bank_transfer" class="font-medium text-gray-700">Bank Transfer</label>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -308,7 +248,7 @@
             }
         });
         
-        // Calculate and update totals
+        // Calculate and update totals (no tax)
         function updateTotals() {
             let subtotal = {{ $booking->total_price }};
             
@@ -318,14 +258,11 @@
                 subtotal += amount;
             });
             
-            // Calculate tax (10% of subtotal)
-            const tax = subtotal * 0.1;
-            const total = subtotal + tax;
+            const total = subtotal;
             
             // Update the display
-            document.getElementById('subtotal').textContent = '$' + subtotal.toFixed(2);
-            document.getElementById('tax').textContent = '$' + tax.toFixed(2);
-            document.getElementById('total').textContent = '$' + total.toFixed(2);
+            document.getElementById('subtotal').textContent = '₦' + subtotal.toFixed(2);
+            document.getElementById('total').textContent = '₦' + total.toFixed(2);
         }
     });
 </script>
