@@ -15,7 +15,7 @@ class BookingController extends Controller
     public function index()
     {
         $bookings = \App\Models\Booking::with(['room.roomType', 'user'])
-            ->latest()
+            ->orderBy('created_at', 'desc')
             ->paginate(10);
             
         return view('bookings.index', compact('bookings'));
@@ -44,11 +44,11 @@ class BookingController extends Controller
      */
     public function store(Request $request)
     {
+        // First, validate the basic booking information
         $validated = $request->validate([
             'room_type_id' => 'required|exists:room_types,id',
             'user_id' => 'required_if:is_guest_booking,1|exists:users,id',
             'check_in' => 'required|date|after_or_equal:today',
-            'is_early_checkin' => 'nullable|boolean',
             'check_out' => 'required|date|after:check_in',
             'special_requests' => 'nullable|string|max:1000',
             'is_guest_booking' => 'sometimes|in:1',
@@ -60,66 +60,123 @@ class BookingController extends Controller
             $validated['user_id'] = auth()->id();
         }
 
+        // Check if this is a guest booking and if we need to validate ID information
+        $isGuestBooking = isset($validated['is_guest_booking']) && $validated['is_guest_booking'] == '1';
+        
+        if ($isGuestBooking && $validated['user_id']) {
+            // Get the guest to check if they already have ID information
+            $guest = \App\Models\User::find($validated['user_id']);
+            $hasExistingId = $guest && $guest->identification_type && $guest->identification_number;
+            
+            // If guest doesn't have ID info, require ID fields
+            if (!$hasExistingId) {
+                $idValidation = $request->validate([
+                    'identification_type' => 'required|string|in:passport,national_id,driving_license',
+                    'identification_number' => 'required|string|max:50',
+                ]);
+                
+                // Merge the validated ID fields
+                $validated = array_merge($validated, $idValidation);
+            }
+        }
+
         // Check if early check-in is requested
         $isEarlyCheckin = $request->has('is_early_checkin') && $request->is_early_checkin;
         
         // If early check-in is requested, we need to find a room that's available now
         $checkInDate = $isEarlyCheckin ? now() : $validated['check_in'];
         
-        // Get the first available room of the selected type
-        $room = \App\Models\Room::where('room_type_id', $validated['room_type_id'])
-            ->where('status', 'available')
-            ->whereDoesntHave('bookings', function($query) use ($checkInDate, $validated) {
-                $query->where('status', '!=', 'cancelled')
-                    ->where(function($q) use ($checkInDate, $validated) {
-                        $q->whereBetween('check_in', [$checkInDate, $validated['check_out']])
-                          ->orWhereBetween('check_out', [$checkInDate, $validated['check_out']])
-                          ->orWhere(function($q) use ($checkInDate, $validated) {
-                              $q->where('check_in', '<', $checkInDate)
-                                ->where('check_out', '>', $validated['check_out']);
-                          });
-                    });
-            })
-            ->first();
+        // Start a database transaction to ensure data consistency
+        \DB::beginTransaction();
+        
+        try {
+            // Get the first available room of the selected type
+            $room = \App\Models\Room::where('room_type_id', $validated['room_type_id'])
+                ->where('status', 'available')
+                ->whereDoesntHave('bookings', function($query) use ($validated, $isEarlyCheckin) {
+                    $checkInDate = $isEarlyCheckin ? now() : $validated['check_in'];
+                    $query->where('status', '!=', 'cancelled')
+                        ->where(function($q) use ($checkInDate, $validated) {
+                            $q->whereBetween('check_in', [$checkInDate, $validated['check_out']])
+                              ->orWhereBetween('check_out', [$checkInDate, $validated['check_out']])
+                              ->orWhere(function($q) use ($checkInDate, $validated) {
+                                  $q->where('check_in', '<', $checkInDate)
+                                    ->where('check_out', '>', $validated['check_out']);
+                              });
+                        });
+                })
+                ->lockForUpdate() // Lock the row to prevent race conditions
+                ->first();
 
-        if (!$room) {
+            if (!$room) {
+                throw new \Exception('No rooms of this type are available for the selected dates.');
+            }
+
+            // Calculate total price
+            $roomType = \App\Models\RoomType::findOrFail($validated['room_type_id']);
+            $checkIn = new Carbon($validated['check_in']);
+            $checkOut = new Carbon($validated['check_out']);
+            $nights = $checkIn->diffInDays($checkOut);
+            $totalPrice = $roomType->price_per_night * $nights;
+            
+            // Update guest's ID information if provided
+            if ($isGuestBooking && $validated['user_id'] && 
+                isset($validated['identification_type']) && isset($validated['identification_number'])) {
+                
+                $guest = \App\Models\User::lockForUpdate()->findOrFail($validated['user_id']);
+                
+                // Only update if the values are different to avoid unnecessary updates
+                if ($guest->identification_type !== $validated['identification_type'] || 
+                    $guest->identification_number !== $validated['identification_number']) {
+                    
+                    $guest->update([
+                        'identification_type' => $validated['identification_type'],
+                        'identification_number' => $validated['identification_number']
+                    ]);
+                    
+                    // Refresh the guest model to get the updated values
+                    $guest->refresh();
+                }
+            }
+
+            // Create the booking
+            $bookingData = [
+                'room_id' => $room->id,
+                'user_id' => $validated['user_id'] ?? auth()->id(),
+                'check_in' => $validated['check_in'],
+                'check_out' => $validated['check_out'],
+                'status' => $isEarlyCheckin ? 'checked_in' : 'confirmed',
+                'special_requests' => $request->input('special_requests'),
+                'total_price' => $totalPrice,
+                'is_early_checkin' => $isEarlyCheckin,
+            ];
+            
+            if ($isEarlyCheckin) {
+                $bookingData['checked_in_at'] = now();
+            }
+            
+            $booking = new \App\Models\Booking($bookingData);
+            $booking->save();
+
+            // Update room status
+            $room->status = 'occupied';
+            $room->save();
+
+            // Commit the transaction
+            \DB::commit();
+
+            return redirect()->route('bookings.show', $booking->id)
+                ->with('success', 'Booking created successfully!');
+                
+        } catch (\Exception $e) {
+            // Rollback the transaction on error
+            \DB::rollBack();
+            \Log::error('Error creating booking: ' . $e->getMessage());
+            
             return back()->withErrors([
-                'room_type_id' => 'No rooms of this type are available for the selected dates.'
+                'error' => $e->getMessage() ?: 'An error occurred while creating the booking. Please try again.'
             ])->withInput();
         }
-
-        // Calculate total price
-        $roomType = \App\Models\RoomType::findOrFail($validated['room_type_id']);
-        $checkIn = new Carbon($validated['check_in']);
-        $checkOut = new Carbon($validated['check_out']);
-        $nights = $checkIn->diffInDays($checkOut);
-        $totalPrice = $roomType->price_per_night * $nights;
-
-        // Create the booking
-        $bookingData = [
-            'room_id' => $room->id,
-            'user_id' => $validated['user_id'] ?? auth()->id(),
-            'check_in' => $validated['check_in'],
-            'check_out' => $validated['check_out'],
-            'status' => $isEarlyCheckin ? 'checked_in' : 'confirmed',
-            'special_requests' => $request->input('special_requests'),
-            'total_price' => $totalPrice,
-            'is_early_checkin' => $isEarlyCheckin,
-        ];
-        
-        if ($isEarlyCheckin) {
-            $bookingData['checked_in_at'] = now();
-        }
-        
-        $booking = new \App\Models\Booking($bookingData);
-        $booking->save();
-
-        // Update room status
-        $room->status = 'occupied';
-        $room->save();
-
-        return redirect()->route('bookings.show', $booking->id)
-            ->with('success', 'Booking created successfully!');
     }
 
     /**
@@ -155,14 +212,6 @@ class BookingController extends Controller
             'guests' => $guests
         ]);
     }
-
-    /**
-     * Update the specified booking in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\RedirectResponse
-     */
     /**
      * Process early check-in for a booking.
      *
@@ -171,23 +220,44 @@ class BookingController extends Controller
      */
     public function earlyCheckIn($id)
     {
-        $booking = \App\Models\Booking::findOrFail($id);
-        
-        if ($booking->processEarlyCheckIn()) {
+        try {
+            $booking = \App\Models\Booking::with('room')->findOrFail($id);
+
+            // Validate if early check-in is possible
+            if ($booking->status !== 'confirmed') {
+                throw new \Exception('Only confirmed bookings can be checked in early.');
+            }
+
+            // Update booking status
+            $booking->update([
+                'status' => 'checked_in',
+                'checked_in_at' => now(),
+                'is_early_checkin' => true, // requires migration column
+            ]);
+
+            // Update room status
+            if ($booking->room) {
+                $booking->room->update([
+                    'status' => 'occupied', // requires column in rooms table
+                ]);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Early check-in processed successfully.',
                 'status' => $booking->status,
-                'is_early_checkin' => $booking->is_early_checkin
+                'is_early_checkin' => $booking->is_early_checkin ?? false,
             ]);
+        } catch (\Exception $e) {
+            \Log::error('Error processing early check-in: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage() ?: 'This booking cannot be checked in early.',
+            ], 422);
         }
-        
-        return response()->json([
-            'success' => false,
-            'message' => 'This booking cannot be checked in early. It may not be confirmed, already checked in, or not paid for.',
-        ], 422);
     }
-    
+
     public function update(Request $request, $id)
     {
         $booking = \App\Models\Booking::findOrFail($id);

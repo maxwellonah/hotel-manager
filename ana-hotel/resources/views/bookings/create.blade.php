@@ -15,8 +15,12 @@
     <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
             <div class="p-6 bg-white border-b border-gray-200">
-                <form method="POST" action="{{ route('bookings.store') }}">
+                <form id="bookingForm" method="POST" action="{{ route('bookings.store') }}">
                     @csrf
+                    <div id="formErrors" class="hidden mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+                        <p class="font-bold">{{ __('Please fix the following errors:') }}</p>
+                        <ul id="errorList" class="list-disc ml-5"></ul>
+                    </div>
 
                     @if(in_array(auth()->user()->role, ['admin', 'receptionist']))
                         <input type="hidden" name="is_guest_booking" value="1">
@@ -100,34 +104,44 @@
                     </div>
 
                     <div class="mb-4 md:flex md:space-x-4">
-                        <div class="w-full md:w-1/2 mb-4 md:mb-0">
+                        <div class="mb-4">
                             <label for="check_in" class="block text-gray-700 text-sm font-bold mb-2">
-                                {{ __('Check-in Date') }}
+                                {{ __('Check-in Date') }} <span class="text-red-500">*</span>
                             </label>
-                            <input id="check_in" type="date" 
-                                   class="form-input w-full @error('check_in') border-red-500 @enderror" 
+                            <input type="date" 
+                                   id="check_in" 
                                    name="check_in" 
+                                   class="form-input w-full @error('check_in') border-red-500 @enderror" 
                                    value="{{ old('check_in') }}" 
-                                   min="{{ now()->format('Y-m-d') }}" 
-                                   required>
+                                   required
+                                   aria-required="true"
+                                   aria-describedby="check_in_help">
                             @error('check_in')
                                 <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                             @enderror
+                            <p id="check_in_help" class="text-xs text-gray-500 mt-1">
+                                {{ __('Check-in time is from 2:00 PM') }}
+                            </p>
                         </div>
 
-                        <div class="w-full md:w-1/2">
+                        <div class="mb-4">
                             <label for="check_out" class="block text-gray-700 text-sm font-bold mb-2">
-                                {{ __('Check-out Date') }}
+                                {{ __('Check-out Date') }} <span class="text-red-500">*</span>
                             </label>
-                            <input id="check_out" type="date" 
-                                   class="form-input w-full @error('check_out') border-red-500 @enderror" 
+                            <input type="date" 
+                                   id="check_out" 
                                    name="check_out" 
-                                   value="{{ old('check_out') }}"
-                                   min="{{ now()->addDay()->format('Y-m-d') }}" 
-                                   required>
+                                   class="form-input w-full @error('check_out') border-red-500 @enderror" 
+                                   value="{{ old('check_out') }}" 
+                                   required
+                                   aria-required="true"
+                                   aria-describedby="check_out_help">
                             @error('check_out')
                                 <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                             @enderror
+                            <p id="check_out_help" class="text-xs text-gray-500 mt-1">
+                                {{ __('Check-out time is until 12:00 PM') }}
+                            </p>
                         </div>
                     </div>
 
@@ -152,22 +166,33 @@
                             {{ __('Special Requests') }}
                         </label>
                         <textarea id="special_requests" 
-                                  class="form-textarea w-full @error('special_requests') border-red-500 @enderror" 
                                   name="special_requests" 
+                                  class="form-textarea w-full @error('special_requests') border-red-500 @enderror" 
                                   rows="3"
-                                  placeholder="{{ __('Any special requests or requirements?') }}">{{ old('special_requests') }}</textarea>
+                                  aria-describedby="special_requests_help"
+                                  placeholder="{{ __('Any special requests or additional information?') }}">{{ old('special_requests') }}</textarea>
                         @error('special_requests')
                             <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
+                        <p id="special_requests_help" class="text-xs text-gray-500 mt-1">
+                            {{ __('Please let us know if you have any special requirements') }}
+                        </p>
                     </div>
 
-                    <div class="flex items-center justify-end">
-                        <a href="{{ url()->previous() }}" class="text-gray-600 hover:text-gray-800 mr-4">
-                            {{ __('Cancel') }}
-                        </a>
-                        <button type="submit" class="btn btn-primary" aria-label="{{ __('Complete booking') }}">
-                            {{ __('Book Now') }}
+                    <div class="flex items-center justify-between">
+                        <button type="submit" 
+                                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                                aria-label="{{ __('Create new booking') }}">
+                            <span class="flex items-center">
+                                <i class="fas fa-calendar-plus mr-2"></i>
+                                {{ __('Create Booking') }}
+                            </span>
                         </button>
+                        <a href="{{ route('bookings.index') }}" 
+                           class="inline-block align-baseline font-bold text-sm text-blue-500 hover:text-blue-800"
+                           aria-label="{{ __('Cancel and return to bookings list') }}">
+                            <i class="fas fa-times mr-1"></i> {{ __('Cancel') }}
+                        </a>
                     </div>
                 </form>
             </div>
@@ -268,42 +293,71 @@
     async function checkGuestIdRequirement(guestId) {
         console.log('Checking ID requirement for guest:', guestId);
         
+        const idSection = document.getElementById('identificationSection');
+        if (!idSection) {
+            console.error('Identification section not found');
+            return false;
+        }
+
+        // Clear any previous content and errors
+        idSection.innerHTML = '';
+        
         if (!guestId) {
             console.log('No guest ID provided, hiding ID section');
-            setIdRequired(false);
-            return;
+            idSection.classList.add('hidden');
+            
+            // Make sure ID fields are not required when no guest is selected
+            const idType = document.getElementById('identification_type');
+            const idNumber = document.getElementById('identification_number');
+            if (idType) {
+                idType.required = false;
+                idType.removeAttribute('name'); // Remove name to exclude from form submission
+            }
+            if (idNumber) {
+                idNumber.required = false;
+                idNumber.removeAttribute('name'); // Remove name to exclude from form submission
+            }
+            
+            return false;
         }
         
         // Show loading state
-        const idSection = document.getElementById('identificationSection');
-        if (idSection) {
-            idSection.innerHTML = '<p>Loading guest information...</p>';
-            idSection.classList.remove('hidden');
-        }
+        idSection.innerHTML = `
+            <div class="flex items-center justify-center p-4">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mr-3"></div>
+                <span class="text-gray-600">Loading guest information...</span>
+            </div>
+        `;
+        idSection.classList.remove('hidden');
         
         try {
+            // Add a timeout to handle cases where the request hangs
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            
             console.log('Fetching guest data from API...');
             const response = await fetch(`/api/guests/${guestId}`, {
                 headers: {
                     'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
                 },
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                signal: controller.signal
             });
             
+            clearTimeout(timeoutId);
+            
             if (!response.ok) {
-                console.error('Failed to fetch guest data', response.status, response.statusText);
-                setIdRequired(false);
-                return;
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             const guest = await response.json();
             console.log('Received guest data:', guest);
             
             if (!guest) {
-                console.log('No guest data received');
-                setIdRequired(true);
-                return;
+                throw new Error('No guest data received from server');
             }
             
             // Debug: Log the exact ID values
@@ -318,21 +372,130 @@
             
             console.log('Has valid ID?', hasValidId);
             
-            // Only require ID if guest doesn't have valid ID info
-            setIdRequired(!hasValidId);
-            
-            // If ID is required, ensure the form validates it
-            if (!hasValidId) {
+            if (hasValidId) {
+                // Hide the section if guest has valid ID
+                console.log('Guest has valid ID, hiding ID section');
+                idSection.innerHTML = '';
+                idSection.classList.add('hidden');
+                
+                // Make sure ID fields are not required
                 const idType = document.getElementById('identification_type');
                 const idNumber = document.getElementById('identification_number');
+                if (idType) idType.required = false;
+                if (idNumber) idNumber.required = false;
                 
+                return false;
+            } else {
+                console.log('Guest does not have valid ID, showing ID section');
+                
+                // Show ID input fields if guest needs to provide ID
+                idSection.innerHTML = `
+                    <div class="mb-4">
+                        <h3 class="text-sm font-medium text-gray-700 mb-2">ID Verification Required</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="identification_type" class="block text-sm font-medium text-gray-700">
+                                    ID Type <span class="text-red-500">*</span>
+                                </label>
+                                <select id="identification_type" name="identification_type" required
+                                        class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                        aria-required="true"
+                                        aria-describedby="id_type_help">
+                                    <option value="">Select ID Type</option>
+                                    <option value="passport" {{ old('identification_type') == 'passport' ? 'selected' : '' }}>Passport</option>
+                                    <option value="national_id" {{ old('identification_type') == 'national_id' ? 'selected' : '' }}>National ID</option>
+                                    <option value="driving_license" {{ old('identification_type') == 'driving_license' ? 'selected' : '' }}>Driving License</option>
+                                </select>
+                                <p id="id_type_help" class="text-xs text-gray-500 mt-1">Select the type of identification</p>
+                                @error('identification_type')
+                                    <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
+                            <div>
+                                <label for="identification_number" class="block text-sm font-medium text-gray-700">
+                                    ID/Passport Number <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" 
+                                       id="identification_number" 
+                                       name="identification_number" 
+                                       value="{{ old('identification_number') }}"
+                                       required
+                                       aria-required="true"
+                                       aria-describedby="id_number_help"
+                                       class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                <p id="id_number_help" class="text-xs text-gray-500 mt-1">Enter the ID or passport number</p>
+                                @error('identification_number')
+                                    <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
+                        </div>
+                        <p class="mt-2 text-sm text-gray-500">Please provide valid identification for the guest.</p>
+                    </div>
+                `;
+                
+                idSection.classList.remove('hidden');
+                
+                // Make sure ID fields are required
+                const idType = document.getElementById('identification_type');
+                const idNumber = document.getElementById('identification_number');
                 if (idType) idType.required = true;
                 if (idNumber) idNumber.required = true;
+                
+                return true;
             }
             
         } catch (error) {
             console.error('Error checking guest ID requirement:', error);
-            setIdRequired(false);
+            
+            // Show error message but still show the ID section to be safe
+            idSection.innerHTML = `
+                <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
+                    <p class="font-bold">Error</p>
+                    <p>Could not verify guest ID information. Please enter ID details below.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="identification_type" class="block text-sm font-medium text-gray-700">
+                            ID Type <span class="text-red-500">*</span>
+                        </label>
+                        <select id="identification_type" name="identification_type" required
+                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="">Select ID Type</option>
+                            <option value="passport" {{ old('identification_type') == 'passport' ? 'selected' : '' }}>Passport</option>
+                            <option value="national_id" {{ old('identification_type') == 'national_id' ? 'selected' : '' }}>National ID</option>
+                            <option value="driving_license" {{ old('identification_type') == 'driving_license' ? 'selected' : '' }}>Driving License</option>
+                        </select>
+                        @error('identification_type')
+                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div>
+                        <label for="identification_number" class="block text-sm font-medium text-gray-700">
+                            ID/Passport Number <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" 
+                               id="identification_number" 
+                               name="identification_number" 
+                               value="{{ old('identification_number') }}"
+                               required
+                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        @error('identification_number')
+                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+                <p class="mt-2 text-sm text-gray-500">We require a valid identification document for all bookings.</p>
+            `;
+            
+            idSection.classList.remove('hidden');
+            
+            // Make sure ID fields are required when showing error
+            const idType = document.getElementById('identification_type');
+            const idNumber = document.getElementById('identification_number');
+            if (idType) idType.required = true;
+            if (idNumber) idNumber.required = true;
+            
+            return true;
         }
     }
     
@@ -343,7 +506,7 @@
         const identificationSection = document.getElementById('identificationSection');
         if (!identificationSection) {
             console.error('Identification section not found');
-            return;
+            return false;
         }
         
         const idType = document.getElementById('identification_type');
@@ -473,7 +636,188 @@
         document.dispatchEvent(selectedEvent);
     }
     
+    // Function to add error messages to the form
+    function addError(message) {
+        const errorList = document.getElementById('errorList');
+        if (!errorList) return;
+        
+        const li = document.createElement('li');
+        li.textContent = message;
+        errorList.appendChild(li);
+    }
+    
+    // Function to validate the form
+    async function validateForm() {
+        console.log('Validating form...');
+        const errorList = document.getElementById('errorList');
+        const formErrors = document.getElementById('formErrors');
+        
+        if (errorList) errorList.innerHTML = '';
+        if (formErrors) formErrors.classList.add('hidden');
+        
+        let isValid = true;
+        const errors = [];
+        
+        // Check if user is selected (for admin/receptionist)
+        const userIdInput = document.getElementById('user_id');
+        if (userIdInput && userIdInput.required && !userIdInput.value) {
+            errors.push('Please select a guest');
+            isValid = false;
+        }
+        
+        // Check room type selection
+        const roomTypeSelect = document.getElementById('room_type_id');
+        if (roomTypeSelect && !roomTypeSelect.value) {
+            errors.push('Please select a room type');
+            isValid = false;
+        }
+        
+        // Check dates
+        const checkInInput = document.getElementById('check_in');
+        const checkOutInput = document.getElementById('check_out');
+        
+        if (checkInInput && !checkInInput.value) {
+            errors.push('Please select a check-in date');
+            isValid = false;
+        }
+        
+        if (checkOutInput && !checkOutInput.value) {
+            errors.push('Please select a check-out date');
+            isValid = false;
+        }
+        
+        // Check ID requirements if section is visible
+        const idSection = document.getElementById('identificationSection');
+        if (idSection && !idSection.classList.contains('hidden')) {
+            const idType = document.getElementById('identification_type');
+            const idNumber = document.getElementById('identification_number');
+            
+            if (idType && !idType.value) {
+                errors.push('Please select an ID type');
+                isValid = false;
+            }
+            
+            if (idNumber && !idNumber.value) {
+                errors.push('Please enter an ID number');
+                isValid = false;
+            }
+        }
+        
+        // Display errors if any
+        if (errors.length > 0) {
+            errors.forEach(error => addError(error));
+            if (formErrors) formErrors.classList.remove('hidden');
+            
+            // Scroll to the top of the form to show errors
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+        
+        return isValid;
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
+        // Add form submission handler
+        const form = document.getElementById('bookingForm');
+        if (form) {
+            form.addEventListener('submit', async function(e) {
+                console.log('Form submission started');
+                
+                // Check if this is a guest booking
+                const isGuestBooking = document.querySelector('input[name="is_guest_booking"]')?.value === '1';
+                const userIdInput = document.getElementById('user_id');
+                const guestId = userIdInput ? userIdInput.value : null;
+                
+                // If it's a guest booking and no user is selected, show error
+                if (isGuestBooking && !guestId) {
+                    e.preventDefault();
+                    addError('Please select a guest');
+                    const formErrors = document.getElementById('formErrors');
+                    if (formErrors) formErrors.classList.remove('hidden');
+                    return false;
+                }
+                
+                // For guest bookings, check if ID is required
+                if (isGuestBooking && guestId) {
+                    try {
+                        // Get the ID section and fields
+                        const idSection = document.getElementById('identificationSection');
+                        const idType = document.getElementById('identification_type');
+                        const idNumber = document.getElementById('identification_number');
+                        
+                        // If ID section is visible, validate the fields
+                        if (idSection && !idSection.classList.contains('hidden')) {
+                            console.log('ID section is visible, validating fields...');
+                            
+                            // Check if either field is empty
+                            if (!idType?.value || !idNumber?.value) {
+                                e.preventDefault();
+                                addError('Please provide both ID type and ID number');
+                                const formErrors = document.getElementById('formErrors');
+                                if (formErrors) formErrors.classList.remove('hidden');
+                                
+                                // Highlight the missing fields
+                                if (!idType?.value) {
+                                    idType.classList.add('border-red-500');
+                                }
+                                if (!idNumber?.value) {
+                                    idNumber.classList.add('border-red-500');
+                                }
+                                
+                                // Scroll to the ID section
+                                if (idSection) {
+                                    idSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    idSection.classList.add('border-2', 'border-red-500', 'p-2', 'rounded');
+                                }
+                                
+                                return false;
+                            }
+                            
+                            // If we get here, the ID fields are filled, so we can proceed
+                            console.log('ID fields are valid, proceeding with submission');
+                        } else {
+                            console.log('ID section is hidden, no ID validation needed');
+                        }
+                    } catch (error) {
+                        console.error('Error during form validation:', error);
+                        // Continue with form submission if there's an error
+                    }
+                }
+                
+                // Validate the form
+                const isValid = await validateForm();
+                if (!isValid) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+                
+                // Show loading state
+                const submitButton = form.querySelector('button[type="submit"]');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    const originalText = submitButton.textContent;
+                    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Processing...';
+                    
+                    // Re-enable the button after 10 seconds in case submission fails silently
+                    setTimeout(() => {
+                        if (submitButton.disabled) {
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalText;
+                            const formErrors = document.getElementById('formErrors');
+                            if (formErrors) formErrors.classList.remove('hidden');
+                            addError('Submission timed out. Please try again.');
+                        }
+                    }, 10000);
+                }
+                
+                // If we got here, the form is valid and can be submitted
+                return true;
+            });
+        }
+
         // Initialize variables
         const userIdInput = document.getElementById('user_id');
         const searchInput = document.getElementById('guest_search');
@@ -542,55 +886,6 @@
         if (isSelfBooking) {
             const currentUserHasId = @json(isset($currentUserHasId) ? $currentUserHasId : false);
             setIdRequired(!currentUserHasId);
-        }
-
-        // Function to check if a guest needs to provide ID
-        async function checkGuestIdRequirement(guestId) {
-            console.log('Checking ID requirement for guest:', guestId);
-            
-            if (!guestId) {
-                console.log('No guest ID provided, hiding ID section');
-                setIdRequired(false);
-                return;
-            }
-            
-            try {
-                console.log('Fetching guest data from API...');
-                const response = await fetch(`/api/guests/${guestId}`);
-                if (!response.ok) {
-                    console.error('Failed to fetch guest data', response.status, response.statusText);
-                    setIdRequired(false);
-                    return;
-                }
-                
-                const guest = await response.json();
-                console.log('Received guest data:', guest);
-                
-                if (!guest) {
-                    console.log('No guest data received');
-                    setIdRequired(true); // Require ID if no guest data
-                    return;
-                }
-                
-                // Debug: Log the exact ID values
-                console.log('Guest ID type:', typeof guest.identification_type, 'value:', `'${guest.identification_type}'`);
-                console.log('Guest ID number:', typeof guest.identification_number, 'value:', `'${guest.identification_number}'`);
-                
-                // Check if guest has valid ID information
-                const hasValidId = guest.identification_type && 
-                                 guest.identification_type.toString().trim() !== '' && 
-                                 guest.identification_number && 
-                                 guest.identification_number.toString().trim() !== '';
-                
-                console.log('Has valid ID?', hasValidId);
-                
-                // Only require ID if guest doesn't have valid ID info
-                setIdRequired(!hasValidId);
-                
-            } catch (error) {
-                console.error('Error checking guest ID requirement:', error);
-                setIdRequired(false);
-            }
         }
 
         // When a guest is selected from search

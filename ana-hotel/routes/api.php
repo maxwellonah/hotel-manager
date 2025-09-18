@@ -83,7 +83,14 @@ Route::get('/guests/search', function (Request $request) {
 // Get single guest endpoint
 Route::get('/guests/{id}', function ($id) {
     $guest = \App\Models\User::where('role', 'guest')
-        ->select('id', 'name', 'email', 'phone')
+        ->select([
+            'id', 
+            'name', 
+            'email', 
+            'phone',
+            'identification_type',
+            'identification_number'
+        ])
         ->findOrFail($id);
     
     return response()->json($guest);
