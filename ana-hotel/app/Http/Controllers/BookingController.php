@@ -45,6 +45,26 @@ class BookingController extends Controller
             'adults' => 'required|integer|min:1',
         ]);
 
+        // Custom validation for guest ID requirements
+        $isGuestBooking = isset($validated['is_guest_booking']) && $validated['is_guest_booking'] == '1';
+        
+        if ($isGuestBooking && isset($validated['user_id'])) {
+            $guest = \App\Models\User::where('id', $validated['user_id'])->where('role', 'guest')->first();
+            
+            if ($guest) {
+                // Check if guest already has valid ID
+                $hasValidId = $guest->identification_type && $guest->identification_number;
+                
+                // If guest doesn't have ID, require ID fields to be filled
+                if (!$hasValidId) {
+                    $request->validate([
+                        'identification_type' => 'required|in:passport,national_id,id_card,driving_license',
+                        'identification_number' => 'required|string|max:50',
+                    ]);
+                }
+            }
+        }
+
         try {
             $booking = $this->bookingService->createBooking($validated);
             return redirect()->route('bookings.show', $booking->id)->with('success', 'Booking created successfully!');

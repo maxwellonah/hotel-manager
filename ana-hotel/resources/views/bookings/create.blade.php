@@ -542,14 +542,16 @@
             if (idType) {
                 idType.required = true;
                 idType.setAttribute('aria-required', 'true');
+                idType.setAttribute('name', 'identification_type'); // Restore name attribute
             }
             if (idNumber) {
                 idNumber.required = true;
                 idNumber.setAttribute('aria-required', 'true');
+                idNumber.setAttribute('name', 'identification_number'); // Restore name attribute
             }
             
             // Ensure the section is visible
-            identificationSection.style.display = 'block';
+            identificationSection.classList.remove('hidden');
             
             console.log('ID fields are now required');
         } else {
