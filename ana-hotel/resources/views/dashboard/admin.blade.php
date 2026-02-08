@@ -32,13 +32,13 @@
                         <a href="{{ route('admin.rooms.create') }}" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded text-center transition duration-300">
                             Add New Room
                         </a>
-                        <a href="{{ route('bookings.create') }}" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded text-center transition duration-300">
+                        <a href="{{ route('admin.bookings.create') }}" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded text-center transition duration-300">
                             New Booking
                         </a>
                         <a href="{{ route('admin.users.index') }}" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded text-center transition duration-300">
                             Manage Users
                         </a>
-                        <a href="{{ route('reports') }}" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-4 rounded text-center transition duration-300">
+                        <a href="{{ route('admin.reports') }}" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-4 rounded text-center transition duration-300">
                             View Reports
                         </a>
                     </div>
@@ -61,9 +61,6 @@
                                     </li>
                                 @endforeach
                             </ul>
-                            <div class="mt-4 text-right">
-                                <a href="{{ route('audit-logs.index') }}" class="text-sm font-medium text-blue-600 hover:text-blue-500">View all activities</a>
-                            </div>
                         @else
                             <p class="text-gray-500">No recent activities found.</p>
                         @endif

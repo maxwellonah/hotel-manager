@@ -28,7 +28,7 @@
                             <x-nav-link :href="route('admin.bookings.index')" :active="request()->is('admin/bookings*')">
                                 {{ __('Bookings') }}
                             </x-nav-link>
-                            <x-nav-link :href="route('reports.index')" :active="request()->is('reports*')">
+                            <x-nav-link :href="route('admin.reports')" :active="request()->is('admin/reports*')">
                                 {{ __('Reports') }}
                             </x-nav-link>
                         @elseif(auth()->user()->role === 'receptionist')
@@ -176,7 +176,7 @@
                     <x-responsive-nav-link :href="route('admin.bookings.index')" :active="request()->is('admin/bookings*')">
                         {{ __('Bookings') }}
                     </x-responsive-nav-link>
-                    <x-responsive-nav-link :href="route('reports.index')" :active="request()->is('reports*')">
+                    <x-responsive-nav-link :href="route('admin.reports')" :active="request()->is('admin/reports*')">
                         {{ __('Reports') }}
                     </x-responsive-nav-link>
                 @elseif(auth()->user()->role === 'receptionist')
