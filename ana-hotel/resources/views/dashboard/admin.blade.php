@@ -38,7 +38,7 @@
                         <a href="{{ route('admin.users.index') }}" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded text-center transition duration-300">
                             Manage Users
                         </a>
-                        <a href="{{ route('reports.index') }}" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-4 rounded text-center transition duration-300">
+                        <a href="{{ route('reports') }}" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-4 rounded text-center transition duration-300">
                             View Reports
                         </a>
                     </div>
