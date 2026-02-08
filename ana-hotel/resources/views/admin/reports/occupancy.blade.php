@@ -7,7 +7,7 @@
             <div class="p-6 bg-white border-b border-gray-200">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold">Occupancy Report</h2>
-                    <a href="{{ route('reports.index') }}" class="text-gray-600 hover:text-gray-900">
+                    <a href="{{ route('admin.reports.index') }}" class="text-gray-600 hover:text-gray-900">
                         &larr; Back to Reports
                     </a>
                 </div>
@@ -140,7 +140,7 @@
                 e.preventDefault();
                 const startDate = document.getElementById('start_date').value;
                 const endDate = document.getElementById('end_date').value;
-                window.location.href = `{{ route('reports.occupancy') }}?start_date=${startDate}&end_date=${endDate}`;
+                window.location.href = `{{ route('admin.reports.occupancy') }}?start_date=${startDate}&end_date=${endDate}`;
             });
         }
 

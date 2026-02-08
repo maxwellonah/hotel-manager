@@ -17,7 +17,7 @@
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-semibold text-gray-900">Revenue Report</h1>
             <div class="flex space-x-2">
-                <a href="{{ route('reports.index') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
+                <a href="{{ route('admin.reports.index') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
                     <span>Back to Reports</span>
                 </a>
             </div>
@@ -25,7 +25,7 @@
 
         <!-- Date Range Filter -->
         <div class="bg-white shadow rounded-lg p-4 mb-6">
-            <form action="{{ route('reports.revenue') }}" method="GET" class="space-y-4">
+            <form action="{{ route('admin.reports.revenue') }}" method="GET" class="space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label for="start_date" class="block text-sm font-medium text-gray-700">Start Date</label>

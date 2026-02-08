@@ -37,14 +37,14 @@
             <div class="p-6 bg-white border-b border-gray-200">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold">Bookings Report</h2>
-                    <a href="{{ route('reports.index') }}" class="text-gray-600 hover:text-gray-900">
+                    <a href="{{ route('admin.reports.index') }}" class="text-gray-600 hover:text-gray-900">
                         &larr; Back to Reports
                     </a>
                 </div>
 
                 <!-- Filters -->
                 <div class="bg-gray-50 px-4 py-5 sm:px-6 rounded-lg mb-6">
-                    <form id="filterForm" method="GET" action="{{ route('reports.bookings') }}" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <form id="filterForm" method="GET" action="{{ route('admin.reports.bookings') }}" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <label for="start_date" class="block text-sm font-medium text-gray-700">Start Date</label>
                             <input type="date" name="start_date" id="start_date" 
@@ -85,7 +85,7 @@
                             <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                                 Apply Filters
                             </button>
-                            <a href="{{ route('reports.bookings') }}" class="text-gray-600 hover:text-gray-800 px-4 py-2">
+                            <a href="{{ route('admin.reports.bookings') }}" class="text-gray-600 hover:text-gray-800 px-4 py-2">
                                 Reset
                             </a>
                         </div>
