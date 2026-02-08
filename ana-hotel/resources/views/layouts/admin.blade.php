@@ -48,7 +48,7 @@
                             <a href="{{ route('admin.dashboard') }}" class="block px-3 py-2 rounded hover:bg-gray-700">Dashboard</a>
                             <a href="{{ route('admin.rooms.index') }}" class="block px-3 py-2 rounded hover:bg-gray-700">Rooms</a>
                             <a href="{{ route('admin.bookings.index') }}" class="block px-3 py-2 rounded hover:bg-gray-700">Bookings</a>
-                            <a href="{{ route('reports.index') }}" class="block px-3 py-2 rounded bg-gray-700">Reports</a>
+                            <a href="{{ route('admin.reports') }}" class="block px-3 py-2 rounded bg-gray-700">Reports</a>
                         </nav>
                     </div>
                 </div>
@@ -69,7 +69,7 @@
                             <a href="{{ route('admin.dashboard') }}" class="block px-3 py-2 rounded hover:bg-gray-700">Dashboard</a>
                             <a href="{{ route('admin.rooms.index') }}" class="block px-3 py-2 rounded hover:bg-gray-700">Rooms</a>
                             <a href="{{ route('admin.bookings.index') }}" class="block px-3 py-2 rounded hover:bg-gray-700">Bookings</a>
-                            <a href="{{ route('reports.index') }}" class="block px-3 py-2 rounded bg-gray-700">Reports</a>
+                            <a href="{{ route('admin.reports') }}" class="block px-3 py-2 rounded bg-gray-700">Reports</a>
                         </nav>
                     </div>
                 </div>
