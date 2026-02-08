@@ -307,6 +307,13 @@
     async function checkGuestIdRequirement(guestId) {
         console.log('Checking ID requirement for guest:', guestId);
         
+        // Check if this is a guest booking - only then check ID requirements
+        const isGuestBooking = document.querySelector('input[name="is_guest_booking"]')?.value === '1';
+        if (!isGuestBooking) {
+            console.log('Not a guest booking, skipping ID requirement check');
+            return false;
+        }
+        
         const idSection = document.getElementById('identificationSection');
         if (!idSection) {
             console.error('Identification section not found');
@@ -350,7 +357,7 @@
             const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
             
             console.log('Fetching guest data from API...');
-            const response = await fetch(`/api/guests/${guestId}`, {
+            const response = await fetch(`/api/v1/guests/${guestId}`, {
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -618,10 +625,27 @@
             }
         }
         
-        // Update the search input with the guest's name
+        // Update the search input with the guest's name and email
         if (searchInput) {
-            searchInput.value = guestData.name || '';
+            const displayValue = guestData.name && guestData.email ? `${guestData.name} (${guestData.email})` : (guestData.name || '');
+            searchInput.value = displayValue;
             searchInput.setAttribute('aria-expanded', 'false');
+            console.log('Set search input to:', displayValue);
+        }
+        
+        // Pre-fill identification fields if guest has valid ID data
+        if (guestData.identification_type && guestData.identification_number) {
+            const idTypeField = document.getElementById('identification_type');
+            const idNumberField = document.getElementById('identification_number');
+            
+            if (idTypeField) {
+                idTypeField.value = guestData.identification_type;
+                console.log('Set ID type to:', guestData.identification_type);
+            }
+            if (idNumberField) {
+                idNumberField.value = guestData.identification_number;
+                console.log('Set ID number to:', guestData.identification_number);
+            }
         }
         
         // Hide search results
@@ -1034,7 +1058,7 @@
             }
 
             searchTimeout = setTimeout(() => {
-                const url = `/api/guests/search?search=${encodeURIComponent(searchTerm)}`;
+                const url = `/api/v1/guests/search?search=${encodeURIComponent(searchTerm)}`;
                 console.log('Making API request to:', url);
                 fetch(url, {
                     headers: {
@@ -1187,7 +1211,7 @@
 
         // If we have an existing user ID, fetch and display their info
         if (userIdInput.value) {
-            fetch(`/api/guests/${userIdInput.value}`)
+            fetch(`/api/v1/guests/${userIdInput.value}`)
                 .then(response => response.json())
                 .then(guest => {
                     searchInput.value = `${guest.name} (${guest.email})`;

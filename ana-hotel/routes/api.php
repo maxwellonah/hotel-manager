@@ -23,13 +23,9 @@ Route::prefix('v1')->group(function () {
     Route::post('/check-availability', [RoomAvailabilityController::class, 'checkRoomAvailability']);
 
     // Guest search
-    Route::get('/guests/search', function (Request $request) {
-        // ... (existing implementation)
-    })->name('api.guests.search');
+    Route::get('/guests/search', [App\Http\Controllers\Api\GuestController::class, 'search'])->name('api.guests.search');
 
-    Route::get('/guests/{id}', function ($id) {
-        // ... (existing implementation)
-    })->where('id', '\d+');
+    Route::get('/guests/{id}', [App\Http\Controllers\Api\GuestController::class, 'show'])->where('id', '\d+');
 
     // Protected routes (require authentication)
     Route::middleware('auth:sanctum')->group(function () {
