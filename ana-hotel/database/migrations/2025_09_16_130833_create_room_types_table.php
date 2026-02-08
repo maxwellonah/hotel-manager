@@ -17,9 +17,9 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->decimal('price_per_night', 10, 2);
             $table->unsignedInteger('capacity');
-            $table->json('amenities')->nullable();
-            $table->string('image')->nullable(); // switch to json('images') if multiple
-            $table->boolean('is_available')->default(true);
+            $table->unsignedInteger('beds');
+            $table->string('size');
+            $table->unsignedInteger('max_occupancy');
             $table->timestamps();
             $table->softDeletes();
         });

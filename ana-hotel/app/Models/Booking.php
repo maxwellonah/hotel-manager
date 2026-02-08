@@ -24,10 +24,8 @@ class Booking extends Model
         'check_out',
         'adults',
         'children',
-        'total_price',
         'status',
         'special_requests',
-        'payment_status',
         'payment_method',
         'transaction_id',
         'checked_in_at',
@@ -35,6 +33,7 @@ class Booking extends Model
         'cancelled_at',
         'is_early_checkin',
         'payment_confirmed_at',
+        'total_price',
     ];
 
     /**
