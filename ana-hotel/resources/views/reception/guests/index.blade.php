@@ -14,6 +14,13 @@
                     </div>
                 </div>
 
+                <form method="GET" action="{{ route('reception.guests.index') }}">
+                    <div class="flex items-center mb-4">
+                        <input type="text" name="search" class="w-full px-4 py-2 border rounded-l-md" placeholder="Search by name, email, ID..." value="{{ request('search') }}">
+                        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-r-md">Search</button>
+                    </div>
+                </form>
+
                 @if (session('success'))
                     <div class="mb-4 rounded border border-green-400 bg-green-100 px-4 py-3 text-green-700" role="alert">
                         <span class="block sm:inline">{{ session('success') }}</span>
@@ -30,6 +37,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
@@ -50,6 +58,9 @@
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {{ $booking->user->name ?? 'Guest' }}
                                         <div class="text-xs text-gray-500">{{ $booking->user->email ?? '' }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <div class="text-xs text-gray-500">{{ $booking->user->identification_type }}: {{ $booking->user->identification_number }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $booking->booking_reference }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

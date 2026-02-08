@@ -16,14 +16,24 @@ class GuestManagementController extends Controller
     public function index(Request $request)
     {
         $request->validate([
-            'filter' => 'nullable|in:payable,all,paid'
+            'filter' => 'nullable|in:payable,all,paid',
+            'search' => 'nullable|string|max:255',
         ]);
 
         $filter = $request->input('filter', 'payable');
+        $search = $request->input('search');
 
         $query = Booking::query()
             ->with(['user', 'room.roomType', 'payments'])
             ->latest();
+
+        if ($search) {
+            $query->whereHas('user', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('identification_number', 'like', "%{$search}%");
+            });
+        }
 
         switch ($filter) {
             case 'paid':
@@ -53,6 +63,7 @@ class GuestManagementController extends Controller
         return view('reception.guests.index', [
             'bookings' => $bookings,
             'filter' => $filter,
+            'search' => $search,
         ]);
     }
 }
