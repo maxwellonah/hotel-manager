@@ -17,7 +17,7 @@
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-semibold text-gray-900">Revenue Report</h1>
             <div class="flex space-x-2">
-                <a href="{{ route('admin.reports.index') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
+                <a href="{{ route('admin.reports') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
                     <span>Back to Reports</span>
                 </a>
             </div>
