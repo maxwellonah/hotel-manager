@@ -25,11 +25,10 @@
                     @if(in_array(auth()->user()->role, ['admin', 'receptionist']))
                         <input type="hidden" name="is_guest_booking" value="1">
                         <div class="mb-4">
-                            <label for="user_id" class="block text-gray-700 text-sm font-bold mb-2">
+                            <label for="guest_search" class="block text-gray-700 text-sm font-bold mb-2">
                                 {{ __('Guest') }}
                             </label>
                             <div class="guest-search-container">
-                                <label for="guest_search" class="sr-only">{{ __('Search guest') }}</label>
                                 <input type="text" 
                                        id="guest_search" 
                                        class="guest-search-input @error('user_id') form-input-error @enderror" 
@@ -65,6 +64,7 @@
                                     <option value="">{{ __('Select ID Type') }}</option>
                                     <option value="passport">{{ __('Passport') }}</option>
                                     <option value="id_card">{{ __('National ID Card') }}</option>
+                                    <option value="national_id">{{ __('National ID') }}</option>
                                     <option value="driving_license">{{ __('Driver\'s License') }}</option>
                                 </select>
                                 @error('identification_type')
@@ -424,6 +424,7 @@
                                         aria-describedby="id_type_help">
                                     <option value="">Select ID Type</option>
                                     <option value="passport" {{ old('identification_type') == 'passport' ? 'selected' : '' }}>Passport</option>
+                                    <option value="id_card" {{ old('identification_type') == 'id_card' ? 'selected' : '' }}>National ID Card</option>
                                     <option value="national_id" {{ old('identification_type') == 'national_id' ? 'selected' : '' }}>National ID</option>
                                     <option value="driving_license" {{ old('identification_type') == 'driving_license' ? 'selected' : '' }}>Driving License</option>
                                 </select>

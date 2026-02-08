@@ -20,7 +20,7 @@ class BookingService
         $isEarlyCheckin = !empty($validatedData['is_early_checkin']);
         $checkInDate = $isEarlyCheckin ? now() : $validatedData['check_in'];
 
-        return DB::transaction(function () use ($validatedData, $checkInDate, $isEarlyCheckin) {
+        return DB::transaction(function () use ($validatedData, $checkInDate, $isEarlyCheckin, $isGuestBooking) {
             $room = $this->findAvailableRoom($validatedData['room_type_id'], $checkInDate, $validatedData['check_out']);
 
             $totalPrice = $this->calculateTotalPrice($validatedData['room_type_id'], $validatedData['check_in'], $validatedData['check_out']);
@@ -30,6 +30,11 @@ class BookingService
             $booking = Booking::create($bookingData);
 
             $room->update(['status' => 'occupied']);
+
+            // Update guest identification details if provided
+            if ($isGuestBooking && isset($validatedData['identification_type']) && isset($validatedData['identification_number'])) {
+                $this->updateGuestIdentification($validatedData['user_id'], $validatedData['identification_type'], $validatedData['identification_number']);
+            }
 
             return $booking;
         });
@@ -165,6 +170,18 @@ class BookingService
             if (!Booking::where('room_id', $room->id)->where('status', 'checked_in')->where('id', '!=', $booking->id)->exists()) {
                 $room->update(['status' => 'available']);
             }
+        }
+    }
+
+    private function updateGuestIdentification(int $userId, string $identificationType, string $identificationNumber): void
+    {
+        $guest = User::where('id', $userId)->where('role', 'guest')->first();
+        
+        if ($guest) {
+            $guest->update([
+                'identification_type' => $identificationType,
+                'identification_number' => $identificationNumber,
+            ]);
         }
     }
 }

@@ -40,6 +40,9 @@ class BookingController extends Controller
             'special_requests' => 'nullable|string|max:1000',
             'is_guest_booking' => 'sometimes|in:1',
             'is_early_checkin' => 'sometimes|boolean',
+            'identification_type' => 'sometimes|required_if:is_guest_booking,1|in:passport,national_id,id_card,driving_license',
+            'identification_number' => 'sometimes|required_if:is_guest_booking,1|string|max:50',
+            'adults' => 'required|integer|min:1',
         ]);
 
         try {
