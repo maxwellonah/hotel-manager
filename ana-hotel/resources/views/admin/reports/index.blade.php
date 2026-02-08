@@ -47,7 +47,7 @@
                                 </div>
                             </div>
                             <div class="mt-4">
-                                <a href="{{ route('reports.occupancy', ['start_date' => $startDate, 'end_date' => $endDate]) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                                <a href="{{ route('admin.reports.occupancy', ['start_date' => $startDate, 'end_date' => $endDate]) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
                                     View occupancy report<span class="sr-only">Occupancy report</span>
                                 </a>
                             </div>
@@ -69,7 +69,7 @@
                                 </div>
                             </div>
                             <div class="mt-4">
-                                <a href="{{ route('reports.revenue', ['start_date' => $startDate, 'end_date' => $endDate]) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                                <a href="{{ route('admin.reports.revenue', ['start_date' => $startDate, 'end_date' => $endDate]) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
                                     View revenue report<span class="sr-only">Revenue report</span>
                                 </a>
                             </div>
@@ -91,7 +91,7 @@
                                 </div>
                             </div>
                             <div class="mt-4">
-                                <a href="{{ route('reports.bookings', ['start_date' => $startDate, 'end_date' => $endDate]) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                                <a href="{{ route('admin.reports.bookings', ['start_date' => $startDate, 'end_date' => $endDate]) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
                                     View bookings report<span class="sr-only">Bookings report</span>
                                 </a>
                             </div>
@@ -113,7 +113,7 @@
                                 </div>
                             </div>
                             <div class="mt-4">
-                                <a href="{{ route('reports.guests', ['start_date' => $startDate, 'end_date' => $endDate]) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                                <a href="{{ route('admin.reports.guests', ['start_date' => $startDate, 'end_date' => $endDate]) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
                                     View guests report<span class="sr-only">Guests report</span>
                                 </a>
                             </div>

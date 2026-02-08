@@ -7,12 +7,12 @@
             <div class="p-6 bg-white border-b border-gray-200">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold">Add New Room</h2>
-                    <a href="{{ route('rooms.index') }}" class="text-gray-600 hover:text-gray-900">
+                    <a href="{{ route('admin.rooms.index') }}" class="text-gray-600 hover:text-gray-900">
                         &larr; Back to Rooms
                     </a>
                 </div>
 
-                <form action="{{ route('rooms.store') }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ route('admin.rooms.store') }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -88,7 +88,7 @@
                     </div>
 
                     <div class="mt-8 flex justify-end space-x-3">
-                        <a href="{{ route('rooms.index') }}" 
+                        <a href="{{ route('admin.rooms.index') }}" 
                            class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             Cancel
                         </a>
