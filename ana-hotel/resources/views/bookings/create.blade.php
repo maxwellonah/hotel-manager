@@ -147,6 +147,20 @@
 
                     <!-- Early Check-in Option -->
                     <div class="mb-6">
+                        <label for="adults" class="block text-gray-700 text-sm font-bold mb-2">
+                            {{ __('Number of Adults') }} <span class="text-red-500">*</span>
+                        </label>
+                        <input type="number" 
+                               id="adults" 
+                               name="adults" 
+                               class="form-input w-full" 
+                               value="{{ old('adults', 1) }}" 
+                               min="1" 
+                               required>
+                    </div>
+
+                    <!-- Early Check-in Option -->
+                    <div class="mb-6">
                         <div class="flex items-center">
                             <input type="checkbox" 
                                    id="is_early_checkin" 
