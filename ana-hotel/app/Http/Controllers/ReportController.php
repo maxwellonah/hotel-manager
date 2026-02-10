@@ -30,7 +30,7 @@ class ReportController extends Controller
         $totalRooms = Room::count();
         $totalGuests = User::where('role', 'guest')->count();
 
-        $availableNights = $totalRooms * Carbon::parse($startDate)->diffInDays($endDate);
+        $availableNights = $totalRooms * (Carbon::parse($startDate)->diffInDays($endDate) + 1);
         $bookings = Booking::where(function($q) use ($startDate, $endDate) {
             $q->where('check_in', '<=', $endDate)->where('check_out', '>=', $startDate);
         })->get();
@@ -68,196 +68,237 @@ class ReportController extends Controller
 
     public function bookings(Request $request)
     {
-        $request->validate([
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
-            'status' => 'nullable|in:pending,confirmed,checked_in,checked_out,cancelled',
-            'room_type' => 'nullable|exists:room_types,id',
-        ]);
-    
-        $startDate = $request->filled('start_date') 
-            ? Carbon::parse($request->start_date)
-            : now()->startOfMonth();
-            
-        $endDate = $request->filled('end_date')
-            ? Carbon::parse($request->end_date)
-            : now()->endOfMonth();
-    
-        $baseQuery = Booking::query()
-            ->with(['room.roomType', 'user'])
-            ->where(function ($q) use ($startDate, $endDate) {
-                $q->where('check_in', '<=', $endDate)
-                  ->where('check_out', '>=', $startDate);
-            });
-    
-        if (!$request->filled('status')) {
-            $baseQuery->where('status', '!=', 'cancelled');
-        }
-    
-        if ($request->filled('status')) {
-            $baseQuery->where('status', $request->status);
-        }
-    
-        if ($request->filled('room_type')) {
-            $baseQuery->whereHas('room', function ($q) use ($request) {
-                $q->where('room_type_id', $request->room_type);
-            });
-        }
-
-        $allBookings = $baseQuery->get();
-    
-        $totalBookings = $allBookings->count();
-        $totalRevenue = $allBookings->where('payment_status', 'paid')->sum('total_price');
-        $totalNights = $allBookings->sum(function($booking) {
-            return Carbon::parse($booking->check_in)->diffInDays($booking->check_out);
-        });
-
-        $averageStay = $totalBookings > 0 ? $totalNights / $totalBookings : 0;
-    
-        $paidNights = $allBookings->where('payment_status', 'paid')->sum(function($booking) {
-            return Carbon::parse($booking->check_in)->diffInDays($booking->check_out);
-        });
-        $averageDailyRate = $paidNights > 0 ? $totalRevenue / $paidNights : 0;
-
-        $totalRooms = Room::count();
-        $dateRange = $startDate->diffInDays($endDate);
-        $totalAvailableNights = $totalRooms * $dateRange;
-        
-        // Prevent division by zero in occupancy rate
-        if ($totalAvailableNights == 0) {
-            $occupancyRate = 0;
-        } else {
-            $occupiedNights = $allBookings->sum(function($booking) use ($startDate, $endDate) {
-                $checkIn = Carbon::parse($booking->check_in)->max($startDate);
-                $checkOut = Carbon::parse($booking->check_out)->min($endDate);
-                return max(0, $checkIn->diffInDays($checkOut));
-            });
-            $occupancyRate = ($occupiedNights / $totalAvailableNights) * 100;
-        }
-
-        $statusCounts = $allBookings->groupBy('status')->map(function($group, $status) use ($totalBookings) {
-            $count = $group->count();
-            return [
-                'count' => $count,
-                'revenue' => $group->where('payment_status', 'paid')->sum('total_price'),
-                'color' => $this->getStatusColor($status),
-                'percentage' => $totalBookings > 0 ? ($count / $totalBookings) * 100 : 0,
-            ];
-        });
-
-        // Ensure all default statuses are present even if count is 0
-        $defaultStatuses = ['pending', 'confirmed', 'checked_in', 'checked_out', 'cancelled'];
-        foreach ($defaultStatuses as $status) {
-            if (!$statusCounts->has($status)) {
-                $statusCounts->put($status, [
-                    'count' => 0,
-                    'revenue' => 0,
-                    'color' => $this->getStatusColor($status),
-                    'percentage' => 0,
+        try {
+            try {
+                \Log::info('Bookings method called with:', [
+                    'start_date' => $request->start_date,
+                    'end_date' => $request->end_date,
+                    'status' => $request->status,
+                    'room_type' => $request->room_type,
                 ]);
+            } catch (\Exception $e) {
+                \Log::error('Logging error: ' . $e->getMessage());
             }
-        }
-
-        $roomTypeBookings = $allBookings->groupBy('room.roomType.name')->map(function($group) {
-            $count = $group->count();
-            $revenue = $group->where('payment_status', 'paid')->sum('total_price');
             
-            // Calculate average stay
-            $totalNights = $group->sum(function($booking) {
+            $request->validate([
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date|after_or_equal:start_date',
+                'status' => 'nullable|in:pending,confirmed,checked_in,checked_out,cancelled',
+                'room_type' => 'nullable|exists:room_types,id',
+            ]);
+        
+            $startDate = $request->filled('start_date') 
+                ? Carbon::parse($request->start_date)
+                : now()->startOfMonth();
+                
+            $endDate = $request->filled('end_date')
+                ? Carbon::parse($request->end_date)
+                : now()->endOfMonth();
+        
+            $baseQuery = Booking::query()
+                ->with(['room.roomType', 'user'])
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->where('check_in', '<=', $endDate)
+                      ->where('check_out', '>=', $startDate);
+                });
+        
+            if (!$request->filled('status')) {
+                $baseQuery->where('status', '!=', 'cancelled');
+            }
+        
+            if ($request->filled('status')) {
+                $baseQuery->where('status', $request->status);
+            }
+        
+            if ($request->filled('room_type')) {
+                $baseQuery->whereHas('room', function ($q) use ($request) {
+                    $q->where('room_type_id', $request->room_type);
+                });
+            }
+
+            $allBookings = $baseQuery->get();
+        
+            $totalBookings = $allBookings->count();
+            $totalRevenue = $allBookings->where('payment_status', 'paid')->sum('total_price');
+            $totalNights = $allBookings->sum(function($booking) {
                 return Carbon::parse($booking->check_in)->diffInDays($booking->check_out);
             });
-            
-            // Calculate average rate (revenue per booking)
-            $averageRate = $count > 0 ? $revenue / $count : 0;
-            
-            // Calculate average stay (nights per booking)
-            $averageStay = $count > 0 ? $totalNights / $count : 0;
-            
-            return [
-                'count' => $count,
-                'revenue' => $revenue,
-                'average_rate' => $averageRate,
-                'average_stay' => $averageStay,
-            ];
-        })->sortByDesc('count');
 
-        $monthlyBookings = [];
-        $monthlyStatusTrends = [];
-        $period = CarbonPeriod::create($startDate, '1 month', $endDate);
-        $statuses = ['confirmed', 'checked_in', 'checked_out', 'cancelled'];
+            $averageStay = $totalBookings > 0 ? $totalNights / $totalBookings : 0;
+        
+            $paidNights = $allBookings->where('payment_status', 'paid')->sum(function($booking) {
+                return Carbon::parse($booking->check_in)->diffInDays($booking->check_out);
+            });
+            $averageDailyRate = $paidNights > 0 ? $totalRevenue / $paidNights : 0;
 
-        // Initialize monthly status trends
-        foreach ($statuses as $status) {
-            $monthlyStatusTrends[$status] = [];
-        }
-
-        foreach ($period as $date) {
-            $month = $date->format('M Y');
-            $monthlyBookings[$month] = [
-                'count' => 0,
-                'revenue' => 0
-            ];
+            $totalRooms = Room::count();
+            $dateRange = $startDate->diffInDays($endDate) + 1; // Add 1 to include both start and end dates
+            $totalAvailableNights = $totalRooms * $dateRange;
             
+            // Prevent division by zero in occupancy rate
+            if ($totalAvailableNights == 0) {
+                $occupancyRate = 0;
+            } else {
+                $occupiedNights = $allBookings->sum(function($booking) use ($startDate, $endDate) {
+                    $checkIn = Carbon::parse($booking->check_in)->max($startDate);
+                    $checkOut = Carbon::parse($booking->check_out)->min($endDate);
+                    return max(0, $checkIn->diffInDays($checkOut));
+                });
+                $occupancyRate = ($occupiedNights / $totalAvailableNights) * 100;
+            }
+
+            $statusCounts = $allBookings->groupBy('status')->map(function($group, $status) use ($totalBookings) {
+                $count = $group->count();
+                return [
+                    'count' => $count,
+                    'revenue' => $group->where('payment_status', 'paid')->sum('total_price'),
+                    'color' => $this->getStatusColor($status),
+                    'percentage' => $totalBookings > 0 ? ($count / $totalBookings) * 100 : 0,
+                ];
+            });
+
+            // Ensure all default statuses are present even if count is 0
+            $defaultStatuses = ['pending', 'confirmed', 'checked_in', 'checked_out', 'cancelled'];
+            foreach ($defaultStatuses as $status) {
+                if (!$statusCounts->has($status)) {
+                    $statusCounts->put($status, [
+                        'count' => 0,
+                        'revenue' => 0,
+                        'color' => $this->getStatusColor($status),
+                        'percentage' => 0,
+                    ]);
+                }
+            }
+
+            $roomTypeBookings = $allBookings->groupBy('room.roomType.name')->map(function($group) {
+                $count = $group->count();
+                $revenue = $group->where('payment_status', 'paid')->sum('total_price');
+                
+                // Calculate average stay
+                $totalNights = $group->sum(function($booking) {
+                    return Carbon::parse($booking->check_in)->diffInDays($booking->check_out);
+                });
+                
+                // Calculate average rate (revenue per booking)
+                $averageRate = $count > 0 ? $revenue / $count : 0;
+                
+                // Calculate average stay (nights per booking)
+                $averageStay = $count > 0 ? $totalNights / $count : 0;
+                
+                return [
+                    'count' => $count,
+                    'revenue' => $revenue,
+                    'average_rate' => $averageRate,
+                    'average_stay' => $averageStay,
+                ];
+            })->sortByDesc('count');
+
+            $monthlyBookings = [];
+            $monthlyStatusTrends = [];
+            $period = CarbonPeriod::create($startDate, '1 month', $endDate);
+            $statuses = ['confirmed', 'checked_in', 'checked_out', 'cancelled'];
+
+            // Initialize monthly status trends
             foreach ($statuses as $status) {
-                $monthlyStatusTrends[$status][$month] = [
+                $monthlyStatusTrends[$status] = [];
+            }
+
+            foreach ($period as $date) {
+                $month = $date->format('M Y');
+                $monthlyBookings[$month] = [
                     'count' => 0,
                     'revenue' => 0
                 ];
+                
+                foreach ($statuses as $status) {
+                    $monthlyStatusTrends[$status][$month] = [
+                        'count' => 0,
+                        'revenue' => 0
+                    ];
+                }
             }
-        }
 
-        foreach ($allBookings as $booking) {
-            $month = Carbon::parse($booking->check_in)->format('M Y');
-            
-            if (isset($monthlyBookings[$month])) {
-                $monthlyBookings[$month]['count']++;
-                if ($booking->payment_status === 'paid') {
-                    $monthlyBookings[$month]['revenue'] += $booking->total_price;
+            foreach ($allBookings as $booking) {
+                $month = Carbon::parse($booking->check_in)->format('M Y');
+                
+                if (isset($monthlyBookings[$month])) {
+                    $monthlyBookings[$month]['count']++;
+                    if ($booking->payment_status === 'paid') {
+                        $monthlyBookings[$month]['revenue'] += $booking->total_price;
+                    }
+                }
+                
+                if (isset($monthlyStatusTrends[$booking->status][$month])) {
+                    $monthlyStatusTrends[$booking->status][$month]['count']++;
+                    if ($booking->payment_status === 'paid') {
+                        $monthlyStatusTrends[$booking->status][$month]['revenue'] += $booking->total_price;
+                    }
                 }
             }
             
-            if (isset($monthlyStatusTrends[$booking->status][$month])) {
-                $monthlyStatusTrends[$booking->status][$month]['count']++;
-                if ($booking->payment_status === 'paid') {
-                    $monthlyStatusTrends[$booking->status][$month]['revenue'] += $booking->total_price;
-                }
-            }
-        }
-        
-        // Convert monthlyBookings to collection format for view
-        $monthlyBookings = collect($monthlyBookings)->map(function($data, $month) {
-            return (object) [
-                'month' => $month,
-                'count' => $data['count'],
-                'revenue' => $data['revenue']
+            // Convert monthlyBookings to collection format for view
+            $monthlyBookings = collect($monthlyBookings)->map(function($data, $month) {
+                return (object) [
+                    'month' => $month,
+                    'count' => $data['count'],
+                    'revenue' => $data['revenue']
+                ];
+            })->values();
+            
+            $bookings = $baseQuery->orderBy('check_in', 'desc')->paginate(15);
+
+            $data = [
+                'bookings' => $bookings,
+                'totalBookings' => $totalBookings,
+                'totalRevenue' => $totalRevenue,
+                'averageStay' => $averageStay,
+                'occupancyRate' => $occupancyRate,
+                'averageDailyRate' => $averageDailyRate,
+                'statusCounts' => $statusCounts,
+                'roomTypeBookings' => $roomTypeBookings,
+                'monthlyBookings' => $monthlyBookings,
+                'monthlyStatusTrends' => $monthlyStatusTrends,
+                'startDate' => $startDate->format('Y-m-d'),
+                'endDate' => $endDate->format('Y-m-d'),
+                'selectedStatus' => $request->status,
+                'selectedRoomType' => $request->room_type,
+                'roomTypes' => RoomType::orderBy('name')->get(),
             ];
-        })->values();
+            
+            // Debug: Log the data being passed to view
+            \Log::info('Data being passed to bookings view:', [
+                'totalBookings' => $totalBookings,
+                'totalRevenue' => $totalRevenue,
+                'averageStay' => $averageStay,
+                'averageDailyRate' => $averageDailyRate,
+                'occupancyRate' => $occupancyRate,
+                'statusCounts_count' => $statusCounts ? $statusCounts->count() : 0,
+                'roomTypeBookings_count' => $roomTypeBookings ? $roomTypeBookings->count() : 0,
+                'monthlyBookings_count' => $monthlyBookings ? $monthlyBookings->count() : 0,
+                'monthlyStatusTrends_count' => count($monthlyStatusTrends ?? []),
+            ]);
         
-        $bookings = $baseQuery->orderBy('check_in', 'desc')->paginate(15);
-
-        $data = [
-            'bookings' => $bookings,
-            'totalBookings' => $totalBookings,
-            'totalRevenue' => $totalRevenue,
-            'averageStay' => $averageStay,
-            'occupancyRate' => $occupancyRate,
-            'averageDailyRate' => $averageDailyRate,
-            'statusCounts' => $statusCounts,
-            'roomTypeBookings' => $roomTypeBookings,
-            'monthlyBookings' => $monthlyBookings,
-            'monthlyStatusTrends' => $monthlyStatusTrends,
-            'startDate' => $startDate->format('Y-m-d'),
-            'endDate' => $endDate->format('Y-m-d'),
-            'selectedStatus' => $request->status,
-            'selectedRoomType' => $request->room_type,
-            'roomTypes' => RoomType::orderBy('name')->get(),
-        ];
-    
-        if ($request->ajax()) {
-            return response()->json($data);
+            if ($request->ajax()) {
+                return response()->json($data);
+            }
+        
+            return view('admin.reports.bookings', $data);
+            
+        } catch (\Exception $e) {
+            \Log::error('Bookings method error: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Return a simple error response for debugging
+            return response()->json([
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => collect($e->getTrace())->take(5)->toArray()
+            ], 500);
         }
-    
-        return view('admin.reports.bookings', $data);
     }
     
     public function revenue(Request $request)
