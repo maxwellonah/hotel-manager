@@ -259,297 +259,6 @@ class ReportController extends Controller
     }
     
     /**
-     * Generate revenue report
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\View\View|\Illuminate\Http\JsonResponse
-     */
-    public function revenue(Request $request)
-    {
-        $request->validate([
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
-            'group_by' => 'nullable|in:day,week,month,year',
-            'room_type' => 'nullable|exists:room_types,id',
-        ]);
-        
-        // Set default date range if not provided (last 30 days)
-        $startDate = $request->filled('start_date') 
-            ? Carbon::parse($request->start_date)
-            : now()->subDays(29)->startOfDay();
-            
-        $endDate = $request->filled('end_date')
-            ? Carbon::parse($request->end_date)
-            : now()->endOfDay();
-            
-        $groupBy = $request->input('group_by', 'day');
-        
-        // Use payments table for revenue aggregation so extensions (and any partials) count on the day paid
-        $useBookings = false;
-        $payments = collect();
-        
-        if ($useBookings) {
-            $query = Booking::query()
-                ->where('payment_status', 'paid')
-                ->whereNotNull('payment_confirmed_at')
-                ->whereBetween('payment_confirmed_at', [$startDate, $endDate])
-                ->where('status', '!=', 'cancelled')
-                ->with(['room.roomType']);
-
-            if ($request->filled('room_type')) {
-                $query->whereHas('room', function($q) use ($request) {
-                    $q->where('room_type_id', $request->room_type);
-                });
-            }
-
-            $payments = $query->get()
-                ->groupBy(function($booking) use ($groupBy) {
-                    return $this->getPeriod($booking->payment_confirmed_at, $groupBy);
-                });
-        } else {
-            // Aggregate by actual payments completed in the period
-            $payments = Payment::with(['booking.room.roomType'])
-                ->where('status', 'completed')
-                ->whereBetween('paid_at', [$startDate, $endDate])
-                ->when($request->filled('room_type'), function($q) use ($request) {
-                    $q->whereHas('booking.room', function($qq) use ($request) {
-                        $qq->where('room_type_id', $request->room_type);
-                    });
-                })
-                ->get()
-                ->groupBy(function($payment) use ($groupBy) {
-                    return $this->getPeriod($payment->paid_at, $groupBy);
-                });
-        }
-        
-        // Prepare data for the chart
-        $chartLabels = [];
-        $chartData = [];
-        $chartDataRooms = [];
-        
-        // Generate all periods in the range
-        $periods = [];
-        $currentDate = $startDate->copy();
-        
-        while ($currentDate <= $endDate) {
-            $period = $this->getPeriod($currentDate, $groupBy);
-            $periods[$period] = [
-                'date' => $currentDate->format('Y-m-d'),
-                'label' => $this->getPeriodLabel($currentDate, $groupBy),
-                'revenue' => 0,
-                'room_revenue' => 0,
-                'other_revenue' => 0,
-                'bookings' => 0,
-                'adr' => 0,
-                'revpar' => 0,
-            ];
-            
-            // Move to next period
-            switch ($groupBy) {
-                case 'day':
-                    $currentDate->addDay();
-                    break;
-                case 'week':
-                    $currentDate->addWeek();
-                    break;
-                case 'month':
-                    $currentDate->addMonth();
-                    break;
-                case 'year':
-                    $currentDate->addYear();
-                    break;
-            }
-        }
-        
-        // Calculate metrics for each period
-        foreach ($payments as $period => $periodPayments) {
-            if (!isset($periods[$period])) {
-                continue;
-            }
-            
-            $periodData = &$periods[$period];
-            
-            if ($useBookings) {
-                // Process bookings data
-                $periodData['bookings'] = $periodPayments->count();
-                $periodData['room_revenue'] = $periodPayments->sum('total_price');
-                $periodData['revenue'] = $periodData['room_revenue'];
-                $periodData['other_revenue'] = 0; // No other revenue from bookings
-            } else {
-                // Process payments data
-                foreach ($periodPayments as $payment) {
-                    $periodData['revenue'] += $payment->amount;
-                    
-                    if ($payment->type === 'room') {
-                        $periodData['room_revenue'] += $payment->amount;
-                    } else {
-                        $periodData['other_revenue'] += $payment->amount;
-                    }
-                    
-                    // Count unique bookings
-                    if ($payment->booking) {
-                        $periodData['bookings'] = $periodPayments->pluck('booking_id')->unique()->count();
-                    }
-                }
-            }
-            
-            // Calculate ADR (Average Daily Rate)
-            $periodData['adr'] = $periodData['bookings'] > 0 
-                ? $periodData['room_revenue'] / $periodData['bookings'] 
-                : 0;
-                
-            // Calculate RevPAR (Revenue Per Available Room)
-            $totalRooms = Room::when($request->filled('room_type'), function($q) use ($request) {
-                $q->where('room_type_id', $request->room_type);
-            })->count();
-            
-            $periodData['revpar'] = $totalRooms > 0 
-                ? $periodData['room_revenue'] / $totalRooms 
-                : 0;
-        }
-        
-        // Prepare data for the view
-        $chartLabels = array_column($periods, 'label');
-        $chartData = [
-            'Room Revenue' => array_column($periods, 'room_revenue'),
-            'Other Revenue' => array_column($periods, 'other_revenue'),
-        ];
-        
-        $tableData = array_values($periods);
-        
-        // Calculate totals
-        $totalRevenue = array_sum(array_column($periods, 'revenue'));
-        $totalRoomRevenue = array_sum(array_column($periods, 'room_revenue'));
-        $totalOtherRevenue = array_sum(array_column($periods, 'other_revenue'));
-        $totalBookings = array_sum(array_column($periods, 'bookings'));
-        
-        $averageAdr = $totalBookings > 0 ? $totalRoomRevenue / $totalBookings : 0;
-        $averageRate = $totalBookings > 0 ? $totalRevenue / $totalBookings : 0;
-        
-        // Get payment methods data
-        $paymentMethods = [];
-        if ($useBookings) {
-            // If using booking data, we don't have payment method information
-            $paymentMethods = [
-                'Booking' => [
-                    'amount' => $totalRevenue,
-                    'percentage' => 100,
-                    'count' => $totalBookings
-                ]
-            ];
-        } else {
-            $paymentMethods = Payment::select('payment_method', DB::raw('SUM(amount) as total_amount'), DB::raw('COUNT(*) as count'))
-                ->where('status', 'completed')
-                ->whereBetween('paid_at', [$startDate, $endDate])
-                ->groupBy('payment_method')
-                ->get()
-                ->mapWithKeys(function($item) use ($totalRevenue) {
-                    return [
-                        $item->payment_method => [
-                            'amount' => $item->total_amount,
-                            'percentage' => $totalRevenue > 0 ? ($item->total_amount / $totalRevenue) * 100 : 0,
-                            'count' => $item->count
-                        ]
-                    ];
-                });
-        }
-            
-        // Get room type revenue data
-        $roomTypeRevenue = [];
-        if ($useBookings) {
-            $roomTypeRevenue = Booking::select(
-                    'room_types.name',
-                    DB::raw('SUM(bookings.total_price) as amount'),
-                    DB::raw('COUNT(bookings.id) as bookings')
-                )
-                ->join('rooms', 'bookings.room_id', '=', 'rooms.id')
-                ->join('room_types', 'rooms.room_type_id', '=', 'room_types.id')
-                ->whereIn('bookings.status', ['checked_in', 'checked_out', 'completed'])
-                ->whereBetween('bookings.check_in', [$startDate, $endDate])
-                ->when($request->filled('room_type'), function($q) use ($request) {
-                    $q->where('rooms.room_type_id', $request->room_type);
-                })
-                ->groupBy('room_types.name')
-                ->get()
-                ->mapWithKeys(function($item) use ($totalRevenue) {
-                    return [
-                        $item->name => [
-                            'amount' => $item->amount,
-                            'bookings' => $item->bookings,
-                            'percentage' => $totalRevenue > 0 ? ($item->amount / $totalRevenue) * 100 : 0
-                        ]
-                    ];
-                });
-        } else {
-            $roomTypeRevenue = Booking::select(
-                    'room_types.name',
-                    DB::raw('SUM(bookings.total_price) as amount'),
-                    DB::raw('COUNT(bookings.id) as bookings')
-                )
-                ->join('payments', 'bookings.id', '=', 'payments.booking_id')
-                ->join('rooms', 'bookings.room_id', '=', 'rooms.id')
-                ->join('room_types', 'rooms.room_type_id', '=', 'room_types.id')
-                ->where('payments.status', 'completed')
-                ->whereBetween('payments.paid_at', [$startDate, $endDate])
-                ->when($request->filled('room_type'), function($q) use ($request) {
-                    $q->where('rooms.room_type_id', $request->room_type);
-                })
-                ->groupBy('room_types.name')
-                ->get()
-                ->mapWithKeys(function($item) use ($totalRevenue) {
-                    return [
-                        $item->name => [
-                            'amount' => $item->amount,
-                            'bookings' => $item->bookings,
-                            'percentage' => $totalRevenue > 0 ? ($item->amount / $totalRevenue) * 100 : 0
-                        ]
-                    ];
-                });
-        }
-            
-        // Get room types for the filter
-        $roomTypes = RoomType::orderBy('name')->get();
-        
-        // Prepare revenue data for the table
-        $revenueData = [];
-        foreach ($tableData as $period) {
-            $revenueData[] = [
-                'period' => $period['label'],
-                'revenue' => $period['revenue'],
-                'bookings' => $period['bookings']
-            ];
-        }
-        
-        // Prepare data for the view
-        $data = [
-            'startDate' => $startDate->format('Y-m-d'),
-            'endDate' => $endDate->format('Y-m-d'),
-            'groupBy' => $groupBy,
-            'selectedRoomType' => $request->room_type,
-            'totalRevenue' => $totalRevenue,
-            'totalRoomRevenue' => $totalRoomRevenue,
-            'totalOtherRevenue' => $totalOtherRevenue,
-            'totalBookings' => $totalBookings,
-            'averageAdr' => $averageAdr,
-            'averageRate' => $averageRate,
-            'roomTypes' => $roomTypes,
-            'chartLabels' => $chartLabels,
-            'chartData' => $chartData,
-            'tableData' => $tableData,
-            'revenueData' => $revenueData,
-            'paymentMethods' => $paymentMethods,
-            'roomTypeRevenue' => $roomTypeRevenue,
-        ];
-        
-        // Return JSON if it's an AJAX request
-        if ($request->ajax()) {
-            return response()->json($data);
-        }
-        
-        return view('admin.reports.revenue', $data);
-    }
-    
-    /**
      * Generate booking statistics report
      *
      * @param  \Illuminate\Http\Request  $request
@@ -1017,6 +726,368 @@ class ReportController extends Controller
     }
     
     /**
+     * Get revenue data (extracted from revenue method for reuse)
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return array
+     */
+    private function getRevenueData(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'group_by' => 'nullable|in:day,week,month,year',
+            'room_type' => 'nullable|exists:room_types,id',
+        ]);
+        
+        // Set default date range if not provided (last 30 days)
+        $startDate = $request->filled('start_date') 
+            ? Carbon::parse($request->start_date)
+            : now()->subDays(29)->startOfDay();
+            
+        $endDate = $request->filled('end_date')
+            ? Carbon::parse($request->end_date)
+            : now()->endOfDay();
+            
+        $groupBy = $request->input('group_by', 'day');
+        
+        // Use the same logic as the revenue method
+        $useBookings = false;
+        $payments = collect();
+        
+        if ($useBookings) {
+            $query = Booking::query()
+                ->where('payment_status', 'paid')
+                ->whereNotNull('payment_confirmed_at')
+                ->whereBetween('payment_confirmed_at', [$startDate, $endDate])
+                ->where('status', '!=', 'cancelled')
+                ->with(['room.roomType']);
+
+            if ($request->filled('room_type')) {
+                $query->whereHas('room', function($q) use ($request) {
+                    $q->where('room_type_id', $request->room_type);
+                });
+            }
+
+            $payments = $query->get()
+                ->groupBy(function($booking) use ($groupBy) {
+                    return $this->getPeriod($booking->payment_confirmed_at, $groupBy);
+                });
+        } else {
+            // Aggregate by actual payments completed in period
+            $payments = Payment::with(['booking.room.roomType'])
+                ->where('status', 'completed')
+                ->whereBetween('paid_at', [$startDate, $endDate])
+                ->when($request->filled('room_type'), function($q) use ($request) {
+                    $q->whereHas('booking.room', function($qq) use ($request) {
+                        $qq->where('room_type_id', $request->room_type);
+                    });
+                })
+                ->get()
+                ->groupBy(function($payment) use ($groupBy) {
+                    return $this->getPeriod($payment->paid_at, $groupBy);
+                });
+        }
+        
+        // Generate all periods in range
+        $periods = [];
+        $currentDate = $startDate->copy();
+        
+        while ($currentDate <= $endDate) {
+            $period = $this->getPeriod($currentDate, $groupBy);
+            $periods[$period] = [
+                'date' => $currentDate->format('Y-m-d'),
+                'label' => $this->getPeriodLabel($currentDate, $groupBy),
+                'revenue' => 0,
+                'room_revenue' => 0,
+                'other_revenue' => 0,
+                'bookings' => 0,
+                'adr' => 0,
+                'revpar' => 0,
+            ];
+            
+            // Move to next period
+            switch ($groupBy) {
+                case 'day':
+                    $currentDate->addDay();
+                    break;
+                case 'week':
+                    $currentDate->addWeek();
+                    break;
+                case 'month':
+                    $currentDate->addMonth();
+                    break;
+                case 'year':
+                    $currentDate->addYear();
+                    break;
+            }
+        }
+        
+        // Calculate metrics for each period
+        foreach ($payments as $period => $periodPayments) {
+            if (!isset($periods[$period])) {
+                continue;
+            }
+            
+            $periodData = &$periods[$period];
+            
+            if ($useBookings) {
+                // Process bookings data
+                $periodData['bookings'] = $periodPayments->count();
+                $periodData['room_revenue'] = $periodPayments->sum('total_price');
+                $periodData['revenue'] = $periodData['room_revenue'];
+                $periodData['other_revenue'] = 0; // No other revenue from bookings
+            } else {
+                // Process payments data
+                foreach ($periodPayments as $payment) {
+                    $periodData['revenue'] += $payment->amount;
+                    
+                    if ($payment->type === 'room') {
+                        $periodData['room_revenue'] += $payment->amount;
+                    } else {
+                        $periodData['other_revenue'] += $payment->amount;
+                    }
+                    
+                    // Count unique bookings
+                    if ($payment->booking) {
+                        $periodData['bookings'] = $periodPayments->pluck('booking_id')->unique()->count();
+                    }
+                }
+            }
+            
+            // Calculate ADR (Average Daily Rate)
+            $periodData['adr'] = $periodData['bookings'] > 0 
+                ? $periodData['room_revenue'] / $periodData['bookings'] 
+                : 0;
+        }
+        
+        // Calculate totals
+        $totalRevenue = array_sum(array_column($periods, 'revenue'));
+        $totalRoomRevenue = array_sum(array_column($periods, 'room_revenue'));
+        $totalOtherRevenue = array_sum(array_column($periods, 'other_revenue'));
+        $totalBookings = array_sum(array_column($periods, 'bookings'));
+        
+        // Get room types for filter
+        $roomTypes = RoomType::orderBy('name')->get();
+        
+        return [
+            'startDate' => $startDate->format('Y-m-d'),
+            'endDate' => $endDate->format('Y-m-d'),
+            'groupBy' => $groupBy,
+            'selectedRoomType' => $request->room_type,
+            'totalRevenue' => $totalRevenue,
+            'totalRoomRevenue' => $totalRoomRevenue,
+            'totalOtherRevenue' => $totalOtherRevenue,
+            'totalBookings' => $totalBookings,
+            'averageAdr' => $totalBookings > 0 ? $totalRoomRevenue / $totalBookings : 0,
+            'averageRate' => $totalBookings > 0 ? $totalRevenue / $totalBookings : 0,
+            'roomTypes' => $roomTypes,
+            'tableData' => array_values($periods),
+        ];
+    }
+    
+    /**
+     * Generate revenue report
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\View\View|\Illuminate\Http\JsonResponse
+     */
+    public function revenue(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'group_by' => 'nullable|in:day,week,month,year',
+            'room_type' => 'nullable|exists:room_types,id',
+        ]);
+        
+        // Set default date range if not provided (last 30 days)
+        $startDate = $request->filled('start_date') 
+            ? Carbon::parse($request->start_date)
+            : now()->subDays(29)->startOfDay();
+            
+        $endDate = $request->filled('end_date')
+            ? Carbon::parse($request->end_date)
+            : now()->endOfDay();
+            
+        $groupBy = $request->input('group_by', 'day');
+        
+        // Get payments data
+        $payments = Payment::with(['booking.room.roomType'])
+            ->where('status', 'completed')
+            ->whereBetween('paid_at', [$startDate, $endDate])
+            ->when($request->filled('room_type'), function($q) use ($request) {
+                $q->whereHas('booking.room', function($qq) use ($request) {
+                    $qq->where('room_type_id', $request->room_type);
+                });
+            })
+            ->get()
+            ->groupBy(function($payment) use ($groupBy) {
+                return $this->getPeriod($payment->paid_at, $groupBy);
+            });
+        
+        // Generate all periods in range
+        $periods = [];
+        $currentDate = $startDate->copy();
+        
+        while ($currentDate <= $endDate) {
+            $period = $this->getPeriod($currentDate, $groupBy);
+            $periods[$period] = [
+                'date' => $currentDate->format('Y-m-d'),
+                'label' => $this->getPeriodLabel($currentDate, $groupBy),
+                'revenue' => 0,
+                'room_revenue' => 0,
+                'other_revenue' => 0,
+                'bookings' => 0,
+                'adr' => 0,
+                'revpar' => 0,
+            ];
+            
+            // Move to next period
+            switch ($groupBy) {
+                case 'day':
+                    $currentDate->addDay();
+                    break;
+                case 'week':
+                    $currentDate->addWeek();
+                    break;
+                case 'month':
+                    $currentDate->addMonth();
+                    break;
+                case 'year':
+                    $currentDate->addYear();
+                    break;
+            }
+        }
+        
+        // Calculate metrics for each period
+        foreach ($payments as $period => $periodPayments) {
+            if (!isset($periods[$period])) {
+                continue;
+            }
+            
+            $periodData = &$periods[$period];
+            
+            // Process payments data
+            foreach ($periodPayments as $payment) {
+                $periodData['revenue'] += $payment->amount;
+                
+                if ($payment->type === 'room') {
+                    $periodData['room_revenue'] += $payment->amount;
+                } else {
+                    $periodData['other_revenue'] += $payment->amount;
+                }
+            }
+            
+            // Count unique bookings
+            $periodData['bookings'] = $periodPayments->pluck('booking_id')->unique()->count();
+            
+            // Calculate ADR (Average Daily Rate)
+            $periodData['adr'] = $periodData['bookings'] > 0 
+                ? $periodData['room_revenue'] / $periodData['bookings'] 
+                : 0;
+        }
+        
+        // Calculate totals
+        $totalRevenue = array_sum(array_column($periods, 'revenue'));
+        $totalRoomRevenue = array_sum(array_column($periods, 'room_revenue'));
+        $totalOtherRevenue = array_sum(array_column($periods, 'other_revenue'));
+        $totalBookings = array_sum(array_column($periods, 'bookings'));
+        
+        // Prepare data for the view
+        $chartLabels = array_column($periods, 'label');
+        $chartData = [
+            'Room Revenue' => array_column($periods, 'room_revenue'),
+            'Other Revenue' => array_column($periods, 'other_revenue'),
+        ];
+        
+        $tableData = array_values($periods);
+        
+        // Prepare revenue data for table
+        $revenueData = [];
+        foreach ($tableData as $period) {
+            $revenueData[] = [
+                'period' => $period['label'],
+                'revenue' => $period['revenue'],
+                'bookings' => $period['bookings']
+            ];
+        }
+        
+        // Get payment methods data
+        $paymentMethods = Payment::select('payment_method', DB::raw('SUM(amount) as total_amount'), DB::raw('COUNT(*) as count'))
+            ->where('status', 'completed')
+            ->whereBetween('paid_at', [$startDate, $endDate])
+            ->groupBy('payment_method')
+            ->get()
+            ->mapWithKeys(function($item) use ($totalRevenue) {
+                return [
+                    $item->payment_method => [
+                        'amount' => $item->total_amount,
+                        'percentage' => $totalRevenue > 0 ? ($item->total_amount / $totalRevenue) * 100 : 0,
+                        'count' => $item->count
+                    ]
+                ];
+            });
+        
+        // Get room type revenue data
+        $roomTypeRevenue = Booking::select(
+                'room_types.name',
+                DB::raw('SUM(bookings.total_price) as amount'),
+                DB::raw('COUNT(bookings.id) as bookings')
+            )
+            ->join('payments', 'bookings.id', '=', 'payments.booking_id')
+            ->join('rooms', 'bookings.room_id', '=', 'rooms.id')
+            ->join('room_types', 'rooms.room_type_id', '=', 'room_types.id')
+            ->where('payments.status', 'completed')
+            ->whereBetween('payments.paid_at', [$startDate, $endDate])
+            ->when($request->filled('room_type'), function($q) use ($request) {
+                $q->where('rooms.room_type_id', $request->room_type);
+            })
+            ->groupBy('room_types.name')
+            ->get()
+            ->mapWithKeys(function($item) use ($totalRevenue) {
+                return [
+                    $item->name => [
+                        'amount' => $item->amount,
+                        'bookings' => $item->bookings,
+                        'percentage' => $totalRevenue > 0 ? ($item->amount / $totalRevenue) * 100 : 0
+                    ]
+                ];
+            });
+        
+        // Get room types for filter
+        $roomTypes = RoomType::orderBy('name')->get();
+        
+        // Prepare all data for the view
+        $data = [
+            'startDate' => $startDate->format('Y-m-d'),
+            'endDate' => $endDate->format('Y-m-d'),
+            'groupBy' => $groupBy,
+            'selectedRoomType' => $request->room_type,
+            'totalRevenue' => $totalRevenue,
+            'totalRoomRevenue' => $totalRoomRevenue,
+            'totalOtherRevenue' => $totalOtherRevenue,
+            'totalBookings' => $totalBookings,
+            'averageAdr' => $totalBookings > 0 ? $totalRoomRevenue / $totalBookings : 0,
+            'averageRate' => $totalBookings > 0 ? $totalRevenue / $totalBookings : 0,
+            'roomTypes' => $roomTypes,
+            'chartLabels' => $chartLabels,
+            'chartData' => $chartData,
+            'tableData' => $tableData,
+            'revenueData' => $revenueData,
+            'paymentMethods' => $paymentMethods,
+            'roomTypeRevenue' => $roomTypeRevenue,
+        ];
+    
+    // Return JSON if it's an AJAX request
+    if ($request->ajax()) {
+        return response()->json($data);
+    }
+    
+    return view('admin.reports.revenue', $data);
+    }
+    
+    /**
      * Export revenue data as CSV.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -1024,54 +1095,160 @@ class ReportController extends Controller
      */
     public function revenueCsv(Request $request)
     {
-        // Get the same data as the revenue report
-        $data = $this->getRevenueData($request);
-        
-        // Prepare CSV headers
-        $headers = [
-            'Date',
-            'Period',
-            'Revenue',
-            'Bookings',
-            'Average Booking Value',
-            'Room Type'
-        ];
-        
-        // Prepare CSV rows
-        $rows = [];
-        foreach ($data['tableData'] as $row) {
-            $rows[] = [
-                $row['period'],
-                $row['revenue'],
-                $row['bookings'],
-                $row['bookings'] > 0 ? number_format($row['revenue'] / $row['bookings'], 2) : '0.00',
-                $data['groupBy'] === 'month' ? date('F Y', strtotime($row['period'])) : $row['period']
-            ];
-        }
-        
-        // Generate CSV content
-        $callback = function() use ($headers, $rows) {
-            $file = fopen('php://output', 'w');
-            fputcsv($file, $headers);
+        try {
+            $request->validate([
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date|after_or_equal:start_date',
+                'group_by' => 'nullable|in:day,week,month,year',
+                'room_type' => 'nullable|exists:room_types,id',
+            ]);
             
-            foreach ($rows as $row) {
-                fputcsv($file, $row);
+            // Set default date range if not provided (last 30 days)
+            $startDate = $request->filled('start_date') 
+                ? Carbon::parse($request->start_date)
+                : now()->subDays(29)->startOfDay();
+                
+            $endDate = $request->filled('end_date')
+                ? Carbon::parse($request->end_date)
+                : now()->endOfDay();
+                
+            $groupBy = $request->input('group_by', 'day');
+            
+            // Get payments data
+            $payments = Payment::with(['booking.room.roomType'])
+                ->where('status', 'completed')
+                ->whereBetween('paid_at', [$startDate, $endDate])
+                ->when($request->filled('room_type'), function($q) use ($request) {
+                    $q->whereHas('booking.room', function($qq) use ($request) {
+                        $qq->where('room_type_id', $request->room_type);
+                    });
+                })
+                ->get()
+                ->groupBy(function($payment) use ($groupBy) {
+                    return $this->getPeriod($payment->paid_at, $groupBy);
+                });
+            
+            // Generate all periods in range
+            $periods = [];
+            $currentDate = $startDate->copy();
+            
+            while ($currentDate <= $endDate) {
+                $period = $this->getPeriod($currentDate, $groupBy);
+                $periods[$period] = [
+                    'date' => $currentDate->format('Y-m-d'),
+                    'label' => $this->getPeriodLabel($currentDate, $groupBy),
+                    'revenue' => 0,
+                    'room_revenue' => 0,
+                    'other_revenue' => 0,
+                    'bookings' => 0,
+                    'adr' => 0,
+                    'revpar' => 0,
+                ];
+                
+                // Move to next period
+                switch ($groupBy) {
+                    case 'day':
+                        $currentDate->addDay();
+                        break;
+                    case 'week':
+                        $currentDate->addWeek();
+                        break;
+                    case 'month':
+                        $currentDate->addMonth();
+                        break;
+                    case 'year':
+                        $currentDate->addYear();
+                        break;
+                }
             }
             
-            fclose($file);
-        };
-        
-        // Generate filename
-        $filename = 'revenue_report_' . $data['startDate'] . '_to_' . $data['endDate'] . '_' . $data['groupBy'] . '.csv';
-        
-        // Return CSV response
-        return new StreamedResponse(
-            $callback(),
-            200,
-            [
-                'Content-Type' => 'text/csv',
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-            ]
-        );
+            // Calculate metrics for each period
+            foreach ($payments as $period => $periodPayments) {
+                if (!isset($periods[$period])) {
+                    continue;
+                }
+                
+                $periodData = &$periods[$period];
+                
+                // Process payments data
+                foreach ($periodPayments as $payment) {
+                    $periodData['revenue'] += $payment->amount;
+                    
+                    if ($payment->type === 'room') {
+                        $periodData['room_revenue'] += $payment->amount;
+                    } else {
+                        $periodData['other_revenue'] += $payment->amount;
+                    }
+                }
+                
+                // Count unique bookings
+                $periodData['bookings'] = $periodPayments->pluck('booking_id')->unique()->count();
+                
+                // Calculate ADR (Average Daily Rate)
+                $periodData['adr'] = $periodData['bookings'] > 0 
+                    ? $periodData['room_revenue'] / $periodData['bookings'] 
+                    : 0;
+            }
+            
+            // Prepare CSV headers
+            $headers = [
+                'Date',
+                'Period',
+                'Revenue',
+                'Bookings',
+                'Average Booking Value',
+                'Room Type'
+            ];
+            
+            // Prepare CSV rows
+            $rows = [];
+            foreach ($periods as $period) {
+                $rows[] = [
+                    $period['date'],
+                    $period['label'],
+                    $period['revenue'],
+                    $period['bookings'],
+                    $period['bookings'] > 0 ? number_format($period['revenue'] / $period['bookings'], 2) : '0.00',
+                    $groupBy === 'month' ? date('F Y', strtotime($period['date'])) : $period['label']
+                ];
+            }
+            
+            // Generate CSV content
+            $callback = function() use ($headers, $rows) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, $headers);
+                
+                foreach ($rows as $row) {
+                    fputcsv($file, $row);
+                }
+                
+                fclose($file);
+            };
+            
+            // Generate filename
+            $filename = 'revenue_report_' . $startDate->format('Y-m-d') . '_to_' . $endDate->format('Y-m-d') . '_' . $groupBy . '.csv';
+            
+            // Return CSV response
+            return new StreamedResponse(
+                $callback(),
+                200,
+                [
+                    'Content-Type' => 'text/csv',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                ]
+            );
+            
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            \Log::error('CSV Export Error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
+            
+            // Return error response
+            return response()->json([
+                'error' => 'CSV export failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
