@@ -37,7 +37,7 @@
             <div class="p-6 bg-white border-b border-gray-200">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold">Bookings Report</h2>
-                    <a href="{{ route('admin.reports.index') }}" class="text-gray-600 hover:text-gray-900">
+                    <a href="{{ route('admin.reports') }}" class="text-gray-600 hover:text-gray-900">
                         &larr; Back to Reports
                     </a>
                 </div>
