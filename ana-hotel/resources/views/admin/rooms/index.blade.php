@@ -7,14 +7,38 @@
             <div class="p-6 bg-white border-b border-gray-200">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold">Room Management</h2>
-                    <a href="{{ route('admin.rooms.create') }}" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
-                        Add New Room
-                    </a>
+                    <div class="flex space-x-3">
+                        <form action="{{ route('admin.rooms.clear-all') }}" method="POST" id="clearRoomsForm">
+                            @csrf
+                            <button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+                                Clear All Rooms
+                            </button>
+                        </form>
+                        <a href="{{ route('admin.rooms.create') }}" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                            Add New Room
+                        </a>
+                    </div>
                 </div>
+
+                <script>
+                document.getElementById('clearRoomsForm').addEventListener('submit', function(e) {
+                    if (!confirm('Are you sure you want to delete ALL rooms? This action cannot be undone and will also delete all room images.')) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    console.log('Form submitted, clearing rooms...');
+                });
+                </script>
 
                 @if (session('success'))
                     <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
                         <span class="block sm:inline">{{ session('success') }}</span>
+                    </div>
+                @endif
+
+                @if (session('error'))
+                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                        <span class="block sm:inline">{{ session('error') }}</span>
                     </div>
                 @endif
 

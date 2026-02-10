@@ -32,17 +32,76 @@
                             <label for="room_type_id" class="block text-sm font-medium text-gray-700">Room Type *</label>
                             <select name="room_type_id" id="room_type_id" 
                                     class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                    required>
+                                    required onchange="updatePriceDisplay(this.value)">
                                 <option value="">Select a room type</option>
                                 @foreach($roomTypes as $type)
-                                    <option value="{{ $type->id }}" {{ old('room_type_id') == $type->id ? 'selected' : '' }}>
-                                        {{ $type->name }} ({{ $type->capacity }} guests)
+                                    <option value="{{ $type->id }}" data-price="{{ $type->price_per_night }}" data-name="{{ $type->name }}" {{ old('room_type_id') == $type->id ? 'selected' : '' }}>
+                                        {{ $type->name }} ({{ $type->capacity }} guests) - ${{ number_format($type->price_per_night, 2) }}/night
                                     </option>
                                 @endforeach
                             </select>
                             @error('room_type_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
+                        </div>
+
+                        <!-- Price Display & Edit -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Price per Night</label>
+                            <div class="mt-1 flex space-x-2">
+                                <div class="flex-1 p-3 bg-gray-100 border border-gray-300 rounded-md">
+                                    <span class="text-lg font-semibold text-gray-900" id="priceDisplay">$0.00</span>
+                                    <span class="text-sm text-gray-600">/night</span>
+                                </div>
+                                <button type="button" onclick="togglePriceEdit()" 
+                                        class="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm">
+                                    Edit
+                                </button>
+                            </div>
+                            <div id="priceEditSection" class="mt-2 hidden">
+                                <input type="number" id="priceEditInput" step="0.01" min="0" 
+                                       class="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                       placeholder="Enter new price">
+                                <div class="mt-2 flex space-x-2">
+                                    <button type="button" onclick="savePrice()" 
+                                            class="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
+                                        Save
+                                    </button>
+                                    <button type="button" onclick="togglePriceEdit()" 
+                                            class="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Room Type Name Edit -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Room Type Name</label>
+                            <div class="mt-1 flex space-x-2">
+                                <div class="flex-1 p-3 bg-gray-100 border border-gray-300 rounded-md">
+                                    <span class="text-lg font-semibold text-gray-900" id="typeNameDisplay">-</span>
+                                </div>
+                                <button type="button" onclick="toggleNameEdit()" 
+                                        class="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm">
+                                    Edit
+                                </button>
+                            </div>
+                            <div id="nameEditSection" class="mt-2 hidden">
+                                <input type="text" id="nameEditInput" 
+                                       class="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                       placeholder="Enter new room type name">
+                                <div class="mt-2 flex space-x-2">
+                                    <button type="button" onclick="saveName()" 
+                                            class="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
+                                        Save
+                                    </button>
+                                    <button type="button" onclick="toggleNameEdit()" 
+                                            class="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Floor -->
@@ -102,4 +161,155 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+let currentRoomTypeId = null;
+
+function updatePriceDisplay(roomTypeId) {
+    const roomTypes = @json($roomTypes);
+    const selectedType = roomTypes.find(type => type.id == roomTypeId);
+    
+    currentRoomTypeId = roomTypeId;
+    
+    if (selectedType) {
+        document.getElementById('priceDisplay').textContent = `$${parseFloat(selectedType.price_per_night).toFixed(2)}`;
+        document.getElementById('typeNameDisplay').textContent = selectedType.name;
+        document.getElementById('priceEditInput').value = selectedType.price_per_night;
+        document.getElementById('nameEditInput').value = selectedType.name;
+    } else {
+        document.getElementById('priceDisplay').textContent = '$0.00';
+        document.getElementById('typeNameDisplay').textContent = '-';
+        document.getElementById('priceEditInput').value = '';
+        document.getElementById('nameEditInput').value = '';
+    }
+}
+
+function togglePriceEdit() {
+    const editSection = document.getElementById('priceEditSection');
+    editSection.classList.toggle('hidden');
+    
+    if (!editSection.classList.contains('hidden')) {
+        document.getElementById('priceEditInput').focus();
+    }
+}
+
+function toggleNameEdit() {
+    const editSection = document.getElementById('nameEditSection');
+    editSection.classList.toggle('hidden');
+    
+    if (!editSection.classList.contains('hidden')) {
+        document.getElementById('nameEditInput').focus();
+    }
+}
+
+async function savePrice() {
+    if (!currentRoomTypeId) {
+        alert('Please select a room type first');
+        return;
+    }
+    
+    const newPrice = document.getElementById('priceEditInput').value;
+    
+    if (!newPrice || newPrice <= 0) {
+        alert('Please enter a valid price');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/room-types/${currentRoomTypeId}/update-price`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({ price: newPrice })
+        });
+        
+        if (response.ok) {
+            // Update the display
+            document.getElementById('priceDisplay').textContent = `$${parseFloat(newPrice).toFixed(2)}`;
+            
+            // Update the dropdown option
+            const option = document.querySelector(`option[value="${currentRoomTypeId}"]`);
+            if (option) {
+                option.setAttribute('data-price', newPrice);
+                const roomTypes = @json($roomTypes);
+                const roomType = roomTypes.find(type => type.id == currentRoomTypeId);
+                if (roomType) {
+                    roomType.price_per_night = newPrice;
+                    option.textContent = `${roomType.name} (${roomType.capacity} guests) - $${parseFloat(newPrice).toFixed(2)}/night`;
+                }
+            }
+            
+            togglePriceEdit();
+            alert('Price updated successfully!');
+        } else {
+            alert('Failed to update price');
+        }
+    } catch (error) {
+        console.error('Error updating price:', error);
+        alert('Error updating price');
+    }
+}
+
+async function saveName() {
+    if (!currentRoomTypeId) {
+        alert('Please select a room type first');
+        return;
+    }
+    
+    const newName = document.getElementById('nameEditInput').value.trim();
+    
+    if (!newName) {
+        alert('Please enter a valid room type name');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/room-types/${currentRoomTypeId}/update-name`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({ name: newName })
+        });
+        
+        if (response.ok) {
+            // Update the display
+            document.getElementById('typeNameDisplay').textContent = newName;
+            
+            // Update the dropdown option
+            const option = document.querySelector(`option[value="${currentRoomTypeId}"]`);
+            if (option) {
+                option.setAttribute('data-name', newName);
+                const roomTypes = @json($roomTypes);
+                const roomType = roomTypes.find(type => type.id == currentRoomTypeId);
+                if (roomType) {
+                    roomType.name = newName;
+                    option.textContent = `${newName} (${roomType.capacity} guests) - $${parseFloat(roomType.price_per_night).toFixed(2)}/night`;
+                }
+            }
+            
+            toggleNameEdit();
+            alert('Room type name updated successfully!');
+        } else {
+            alert('Failed to update room type name');
+        }
+    } catch (error) {
+        console.error('Error updating name:', error);
+        alert('Error updating room type name');
+    }
+}
+
+// Set initial price display if room type is pre-selected
+document.addEventListener('DOMContentLoaded', function() {
+    const selectedRoomTypeId = document.querySelector('select[name="room_type_id"]').value;
+    if (selectedRoomTypeId) {
+        updatePriceDisplay(selectedRoomTypeId);
+    }
+});
+</script>
+@endpush
 @endsection

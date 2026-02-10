@@ -53,6 +53,16 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin'])->grou
 
     // Room Management
     Route::resource('rooms', RoomController::class);
+    
+    // Room Type Management
+    Route::post('/room-types/{roomType}/update-price', [\App\Http\Controllers\RoomController::class, 'updateRoomTypePrice'])
+        ->name('room-types.update-price');
+    Route::post('/room-types/{roomType}/update-name', [\App\Http\Controllers\RoomController::class, 'updateRoomTypeName'])
+        ->name('room-types.update-name');
+    
+    // Clear All Rooms
+    Route::post('/rooms/clear-all', [\App\Http\Controllers\RoomController::class, 'clearAllRooms'])
+        ->name('rooms.clear-all');
 
     // Booking Management
     Route::resource('bookings', BookingController::class);
