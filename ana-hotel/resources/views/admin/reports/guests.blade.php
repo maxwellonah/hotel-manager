@@ -74,35 +74,10 @@
                                     </dt>
                                     <dd class="flex items-baseline">
                                         <div class="text-2xl font-semibold text-gray-900">
-                                            {{ $newGuests }}
+                                            {{ $totalGuests }}
                                         </div>
                                         <div class="ml-2 flex items-baseline text-sm font-semibold text-green-600">
-                                            {{ $newGuestsPercentage }}%
-                                        </div>
-                                    </dd>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white overflow-hidden shadow rounded-lg">
-                        <div class="px-4 py-5 sm:p-6">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0 bg-yellow-500 rounded-md p-3">
-                                    <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                    </svg>
-                                </div>
-                                <div class="ml-5 w-0 flex-1">
-                                    <dt class="text-sm font-medium text-gray-500 truncate">
-                                        Repeat Guests
-                                    </dt>
-                                    <dd class="flex items-baseline">
-                                        <div class="text-2xl font-semibold text-gray-900">
-                                            {{ $repeatGuests }}
-                                        </div>
-                                        <div class="ml-2 flex items-baseline text-sm font-semibold text-green-600">
-                                            {{ $repeatGuestsPercentage }}%
+                                            {{ $totalGuests }}%
                                         </div>
                                     </dd>
                                 </div>
@@ -124,7 +99,7 @@
                                     </dt>
                                     <dd class="flex items-baseline">
                                         <div class="text-2xl font-semibold text-gray-900">
-                                            {{ $totalCountries }}
+                                            {{ $countryStats->count() }}
                                         </div>
                                     </dd>
                                 </div>
@@ -156,16 +131,16 @@
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    @foreach($guestsByCountry as $country => $data)
+                                    @foreach($countryStats as $stat)
                                     <tr>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            {{ $country }}
+                                            {{ $stat->country }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                                            {{ $data['count'] }}
+                                            {{ $stat->total }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                                            {{ number_format($data['percentage'], 1) }}%
+                                            {{ number_format(($stat->total / $totalGuests) * 100, 1) }}%
                                         </td>
                                     </tr>
                                     @endforeach
@@ -177,40 +152,13 @@
 
                 <!-- Guest Demographics -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                    <!-- Age Distribution -->
-                    <div class="bg-white shadow rounded-lg p-6">
-                        <h3 class="text-lg font-medium text-gray-900 mb-4">Age Distribution</h3>
-                        <div class="h-80">
-                            <canvas id="ageDistributionChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Gender Distribution -->
-                    <div class="bg-white shadow rounded-lg p-6">
-                        <h3 class="text-lg font-medium text-gray-900 mb-4">Gender Distribution</h3>
-                        <div class="h-80">
-                            <canvas id="genderDistributionChart"></canvas>
-                        </div>
-                    </div>
+                    <!-- Gender Distribution removed due to missing data -->
                 </div>
 
                 <!-- Repeat Guest Analysis -->
                 <div class="bg-white shadow rounded-lg p-6">
                     <h3 class="text-lg font-medium text-gray-900 mb-4">Repeat Guest Analysis</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div>
-                            <h4 class="text-md font-medium text-gray-700 mb-2">Repeat Guest Rate</h4>
-                            <div class="h-64">
-                                <canvas id="repeatGuestRateChart"></canvas>
-                            </div>
-                        </div>
-                        <div>
-                            <h4 class="text-md font-medium text-gray-700 mb-2">Average Stays per Repeat Guest</h4>
-                            <div class="h-64">
-                                <canvas id="avgStaysPerGuestChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
+                    <p class="text-gray-600">Repeat guest analysis charts removed due to missing data.</p>
                 </div>
             </div>
         </div>
@@ -234,16 +182,12 @@
 
         // Initialize charts
         initGuestsByCountryChart();
-        initAgeDistributionChart();
-        initGenderDistributionChart();
-        initRepeatGuestRateChart();
-        initAvgStaysPerGuestChart();
     });
 
     function initGuestsByCountryChart() {
         const ctx = document.getElementById('guestsByCountryChart').getContext('2d');
-        const countries = @json(collect($guestsByCountry)->keys());
-        const counts = @json(collect($guestsByCountry)->pluck('count'));
+        const countries = @json($countryStats->pluck('country'));
+        const counts = @json($countryStats->pluck('total'));
         
         // Get top 5 countries and group the rest as 'Others'
         const topCountries = countries.slice(0, 5);
@@ -298,170 +242,6 @@
         });
     }
 
-    function initAgeDistributionChart() {
-        const ctx = document.getElementById('ageDistributionChart').getContext('2d');
-        const ageGroups = ['18-24', '25-34', '35-44', '45-54', '55-64', '65+'];
-        const counts = @json($ageDistribution);
-
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ageGroups,
-                datasets: [{
-                    label: 'Number of Guests',
-                    data: counts,
-                    backgroundColor: 'rgba(79, 70, 229, 0.7)',
-                    borderColor: 'rgba(79, 70, 229, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
-            }
-        });
-    }
-
-    function initGenderDistributionChart() {
-        const ctx = document.getElementById('genderDistributionChart').getContext('2d');
-        const genders = @json(collect($genderDistribution)->keys()->map(fn($g) => ucfirst($g)));
-        const counts = @json(collect($genderDistribution)->values());
-        
-        const backgroundColors = [
-            'rgba(79, 70, 229, 0.7)',
-            'rgba(236, 72, 153, 0.7)',
-            'rgba(156, 163, 175, 0.7)'
-        ];
-
-        new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: genders,
-                datasets: [{
-                    data: counts,
-                    backgroundColor: backgroundColors,
-                    borderColor: backgroundColors.map(color => color.replace('0.7', '1')),
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'right',
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const label = context.label || '';
-                                const value = context.raw || 0;
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = Math.round((value / total) * 100);
-                                return `${label}: ${value} (${percentage}%)`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    function initRepeatGuestRateChart() {
-        const ctx = document.getElementById('repeatGuestRateChart').getContext('2d');
-        const repeatRate = {{ $repeatGuestRate }};
-        const newGuestRate = 100 - repeatRate;
-
-        new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Repeat Guests', 'New Guests'],
-                datasets: [{
-                    data: [repeatRate, newGuestRate],
-                    backgroundColor: ['rgba(16, 185, 129, 0.7)', 'rgba(99, 102, 241, 0.7)'],
-                    borderColor: ['rgba(16, 185, 129, 1)', 'rgba(99, 102, 241, 1)'],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '70%',
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return `${context.label}: ${context.raw}%`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    function initAvgStaysPerGuestChart() {
-        const ctx = document.getElementById('avgStaysPerGuestChart').getContext('2d');
-        const avgStays = {{ $avgStaysPerGuest }};
-        const maxStays = Math.ceil(avgStays * 1.5); // For better visualization
-        
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['Average Stays per Repeat Guest'],
-                datasets: [{
-                    label: 'Average Stays',
-                    data: [avgStays],
-                    backgroundColor: 'rgba(245, 158, 11, 0.7)',
-                    borderColor: 'rgba(245, 158, 11, 1)',
-                    borderWidth: 1,
-                    barPercentage: 0.5
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        max: maxStays,
-                        ticks: {
-                            precision: 1
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return `Average stays: ${context.raw.toFixed(1)}`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
 </script>
 @endpush
 @endsection
