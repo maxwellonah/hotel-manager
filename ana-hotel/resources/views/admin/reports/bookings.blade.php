@@ -461,11 +461,11 @@
         const statusTrendsChart = new Chart(statusTrendsCtx, {
             type: 'line',
             data: {
-                labels: @json(isset($monthlyStatusTrends) && !empty($monthlyStatusTrends) ? array_keys($monthlyStatusTrends['confirmed'] ?? []) : []),
+                labels: @json($monthlyStatusLabels ?? []),
                 datasets: [
                     {
                         label: 'Confirmed',
-                        data: @json(isset($monthlyStatusTrends['confirmed']) ? array_values(array_map(function($data) { return $data['count']; }, $monthlyStatusTrends['confirmed'] ?? [])),
+                        data: @json($monthlyStatusTrendsFormatted['confirmed'] ?? []),
                         borderColor: chartColors.confirmed,
                         backgroundColor: chartColors.confirmed.replace('rgb', 'rgba').replace(')', '0.1)'),
                         tension: 0.3,
@@ -473,7 +473,7 @@
                     },
                     {
                         label: 'Checked In',
-                        data: @json(isset($monthlyStatusTrends['checked_in']) ? array_values(array_map(function($data) { return $data['count']; }, $monthlyStatusTrends['checked_in'] ?? [])),
+                        data: @json($monthlyStatusTrendsFormatted['checked_in'] ?? []),
                         borderColor: chartColors.checked_in,
                         backgroundColor: chartColors.checked_in.replace('rgb', 'rgba').replace(')', '0.1)'),
                         tension: 0.3,
@@ -481,7 +481,7 @@
                     },
                     {
                         label: 'Checked Out',
-                        data: @json(isset($monthlyStatusTrends['checked_out']) ? array_values(array_map(function($data) { return $data['count']; }, $monthlyStatusTrends['checked_out'] ?? [])),
+                        data: @json($monthlyStatusTrendsFormatted['checked_out'] ?? []),
                         borderColor: chartColors.checked_out,
                         backgroundColor: chartColors.checked_out.replace('rgb', 'rgba').replace(')', '0.1)'),
                         tension: 0.3,
@@ -489,7 +489,7 @@
                     },
                     {
                         label: 'Cancelled',
-                        data: @json(isset($monthlyStatusTrends['cancelled']) ? array_values(array_map(function($data) { return $data['count']; }, $monthlyStatusTrends['cancelled'] ?? [])),
+                        data: @json($monthlyStatusTrendsFormatted['cancelled'] ?? []),
                         borderColor: chartColors.cancelled,
                         backgroundColor: chartColors.cancelled.replace('rgb', 'rgba').replace(')', '0.1)'),
                         tension: 0.3,

@@ -247,6 +247,21 @@ class ReportController extends Controller
             
             $bookings = $baseQuery->orderBy('check_in', 'desc')->paginate(15);
 
+            // Preprocess monthlyStatusTrends for safe Blade JSON output
+            $monthlyStatusTrendsFormatted = [];
+            $monthlyStatusLabels = [];
+            
+            foreach (['confirmed', 'checked_in', 'checked_out', 'cancelled'] as $status) {
+                $monthlyStatusTrendsFormatted[$status] = collect($monthlyStatusTrends[$status] ?? [])
+                    ->pluck('count')
+                    ->values()
+                    ->toArray();
+            }
+            
+            if (!empty($monthlyStatusTrends['confirmed'])) {
+                $monthlyStatusLabels = array_keys($monthlyStatusTrends['confirmed']);
+            }
+
             $data = [
                 'bookings' => $bookings,
                 'totalBookings' => $totalBookings,
@@ -258,6 +273,8 @@ class ReportController extends Controller
                 'roomTypeBookings' => $roomTypeBookings,
                 'monthlyBookings' => $monthlyBookings,
                 'monthlyStatusTrends' => $monthlyStatusTrends,
+                'monthlyStatusTrendsFormatted' => $monthlyStatusTrendsFormatted,
+                'monthlyStatusLabels' => $monthlyStatusLabels,
                 'startDate' => $startDate->format('Y-m-d'),
                 'endDate' => $endDate->format('Y-m-d'),
                 'selectedStatus' => $request->status,
