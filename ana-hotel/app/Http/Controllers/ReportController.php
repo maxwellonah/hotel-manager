@@ -64,6 +64,99 @@ class ReportController extends Controller
     {
         // ... (existing occupancy method is fine, leaving it as is)
     }
+
+    public function bookings(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'status' => 'nullable|in:pending,confirmed,checked_in,checked_out,cancelled',
+            'room_type' => 'nullable|exists:room_types,id',
+        ]);
+        
+        $startDate = $request->filled('start_date') 
+            ? Carbon::parse($request->start_date)
+            : now()->startOfMonth();
+            
+        $endDate = $request->filled('end_date')
+            ? Carbon::parse($request->end_date)
+            : now()->endOfMonth();
+        
+        $query = Booking::query()
+            ->with(['room.roomType', 'user', 'payments'])
+            ->where(function($q) use ($startDate, $endDate) {
+                $q->where('check_in', '<=', $endDate)
+                  ->where('check_out', '>=', $startDate);
+            })
+            ->when(!$request->filled('status'), function($q) {
+                $q->where('status', '!=', 'cancelled');
+            });
+        
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        
+        if ($request->filled('room_type')) {
+            $query->whereHas('room', function($q) use ($request) {
+                $q->where('room_type_id', $request->room_type);
+            });
+        }
+        
+        $bookings = $query->orderBy('check_in', 'desc')->paginate(15);
+        
+        $totalBookings = $bookings->total();
+        $totalRevenue = $bookings->sum('total_price');
+        
+        $totalNights = $bookings->sum(function($booking) {
+            return Carbon::parse($booking->check_in)->diffInDays($booking->check_out);
+        });
+        
+        $averageStay = $totalBookings > 0 ? $totalNights / $totalBookings : 0;
+        $averageDailyRate = $totalNights > 0 ? $totalRevenue / $totalNights : 0;
+        
+        $totalRooms = Room::count();
+        $totalAvailableNights = $totalRooms * $startDate->diffInDays($endDate);
+        $occupiedNights = $bookings->sum(function($booking) use ($startDate, $endDate) {
+            $checkIn = Carbon::parse($booking->check_in)->max($startDate);
+            $checkOut = Carbon::parse($booking->check_out)->min($endDate);
+            return $checkIn->diffInDays($checkOut);
+        });
+        $occupancyRate = $totalAvailableNights > 0 ? ($occupiedNights / $totalAvailableNights) * 100 : 0;
+        
+        $statusCounts = $bookings->groupBy('status')
+            ->map(function($bookings, $status) use ($totalBookings) {
+                $count = $bookings->count();
+                return [
+                    'count' => $count,
+                    'revenue' => $bookings->sum('total_price'),
+                    'color' => $this->getStatusColor($status),
+                    'percentage' => $totalBookings > 0 ? ($count / $totalBookings) * 100 : 0
+                ];
+            });
+        
+        $roomTypes = RoomType::orderBy('name')->get();
+        
+        $data = [
+            'bookings' => $bookings,
+            'totalBookings' => $totalBookings,
+            'totalRevenue' => $totalRevenue,
+            'averageStay' => $averageStay,
+            'occupancyRate' => $occupancyRate,
+            'averageDailyRate' => $averageDailyRate,
+            'statusCounts' => $statusCounts,
+            'startDate' => $startDate->format('Y-m-d'),
+            'endDate' => $endDate->format('Y-m-d'),
+            'selectedStatus' => $request->status,
+            'selectedRoomType' => $request->room_type,
+            'roomTypes' => $roomTypes,
+        ];
+        
+        if ($request->ajax()) {
+            return response()->json($data);
+        }
+        
+        return view('admin.reports.bookings', $data);
+    }
     
     public function revenue(Request $request)
     {
@@ -199,7 +292,6 @@ class ReportController extends Controller
                 ]];
             });
             
-        // Prepare revenue data for table (what the view expects)
         $revenueData = [];
         foreach ($periods as $period) {
             $revenueData[] = [
@@ -224,13 +316,12 @@ class ReportController extends Controller
             'chartLabels' => array_column($periods, 'label'),
             'chartData' => ['Room Revenue' => array_column($periods, 'room_revenue'), 'Other Revenue' => array_column($periods, 'other_revenue')],
             'tableData' => array_values($periods),
-            'revenueData' => $revenueData, // Add this for the view
+            'revenueData' => $revenueData, 
             'paymentMethods' => $paymentMethods,
             'roomTypeRevenue' => $roomTypeRevenue,
         ];
     }
     
-    // ... (keep other existing helper methods like getPeriod, getPeriodLabel, etc.)
     protected function getPeriod($date, $groupBy)
     {
         $date = $date instanceof Carbon ? $date : Carbon::parse($date);
@@ -253,5 +344,18 @@ class ReportController extends Controller
             case 'year': return $date->format('Y');
             default: return $date->format('M d, Y');
         }
+    }
+
+    protected function getStatusColor($status, $opacity = 1)
+    {
+        $colors = [
+            'pending' => 'rgba(255, 193, 7, ' . $opacity . ')',  // Amber
+            'confirmed' => 'rgba(13, 110, 253, ' . $opacity . ')',  // Blue
+            'checked_in' => 'rgba(25, 135, 84, ' . $opacity . ')',  // Green
+            'checked_out' => 'rgba(111, 66, 193, ' . $opacity . ')',  // Purple
+            'cancelled' => 'rgba(220, 53, 69, ' . $opacity . ')',  // Red
+        ];
+        
+        return $colors[strtolower($status)] ?? 'rgba(108, 117, 125, ' . $opacity . ')';  // Gray as default
     }
 }
