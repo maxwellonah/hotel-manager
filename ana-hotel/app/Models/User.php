@@ -80,6 +80,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Get all of the payments for the user.
+     */
+    public function payments()
+    {
+        return $this->hasManyThrough(\App\Models\Payment::class, \App\Models\Booking::class);
+    }
+
+    /**
      * The accessors to append to the model's array form.
      *
      * @var array
