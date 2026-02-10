@@ -68,7 +68,8 @@ class UserController extends Controller
     public function show(User $user)
     {
         $user->load(['bookings.room.roomType', 'bookings.payments']);
-        return view('admin.users.show', compact('user'));
+        $bookings = $user->bookings; // Extract bookings from user
+        return view('admin.users.show', compact('user', 'bookings'));
     }
 
     /**
