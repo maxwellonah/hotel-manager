@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
@@ -780,10 +781,8 @@ class ReportController extends Controller
             'monthlyStatusTrends' => $monthlyStatusTrends
         ]);
         
-        // Return the view with data
-        return view('admin.reports.bookings', $data);
     }
-    
+
     /**
      * Get color for booking status
      *
@@ -901,13 +900,11 @@ class ReportController extends Controller
         if ($request->ajax()) {
             return response()->json($data);
         }
-        
-        return view('admin.reports.guests', $data);
     }
     
     /**
-     * Get period string for grouping
-     * 
+     * Get period label for display
+     *
      * @param  string $date
      * @param  string $groupBy
      * @return string
@@ -1017,5 +1014,64 @@ class ReportController extends Controller
         $blue = mt_rand(0, 255);
         
         return "rgba($red, $green, $blue, $opacity)";
+    }
+    
+    /**
+     * Export revenue data as CSV.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse
+     */
+    public function revenueCsv(Request $request)
+    {
+        // Get the same data as the revenue report
+        $data = $this->getRevenueData($request);
+        
+        // Prepare CSV headers
+        $headers = [
+            'Date',
+            'Period',
+            'Revenue',
+            'Bookings',
+            'Average Booking Value',
+            'Room Type'
+        ];
+        
+        // Prepare CSV rows
+        $rows = [];
+        foreach ($data['tableData'] as $row) {
+            $rows[] = [
+                $row['period'],
+                $row['revenue'],
+                $row['bookings'],
+                $row['bookings'] > 0 ? number_format($row['revenue'] / $row['bookings'], 2) : '0.00',
+                $data['groupBy'] === 'month' ? date('F Y', strtotime($row['period'])) : $row['period']
+            ];
+        }
+        
+        // Generate CSV content
+        $callback = function() use ($headers, $rows) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $headers);
+            
+            foreach ($rows as $row) {
+                fputcsv($file, $row);
+            }
+            
+            fclose($file);
+        };
+        
+        // Generate filename
+        $filename = 'revenue_report_' . $data['startDate'] . '_to_' . $data['endDate'] . '_' . $data['groupBy'] . '.csv';
+        
+        // Return CSV response
+        return new StreamedResponse(
+            $callback(),
+            200,
+            [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ]
+        );
     }
 }

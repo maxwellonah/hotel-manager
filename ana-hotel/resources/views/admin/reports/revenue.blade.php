@@ -47,6 +47,10 @@
                         <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             Apply Filters
                         </button>
+                        <a href="{{ route('admin.reports.revenue.csv') }}?{{ http_build_query(['start_date' => $startDate, 'end_date' => $endDate, 'group_by' => $groupBy, 'room_type' => request('room_type')]) }}" 
+                           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                            Download CSV
+                        </a>
                     </div>
                 </div>
             </form>

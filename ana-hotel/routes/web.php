@@ -73,6 +73,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin'])->grou
     Route::get('/reports/revenue', [ReportController::class, 'revenue'])->name('reports.revenue');
     Route::get('/reports/bookings', [ReportController::class, 'bookings'])->name('reports.bookings');
     Route::get('/reports/guests', [ReportController::class, 'guests'])->name('reports.guests');
+    
+    // CSV Downloads
+    Route::get('/reports/revenue/csv', [ReportController::class, 'revenueCsv'])->name('reports.revenue.csv');
 });
 
 // Room Routes (for non-admin)
