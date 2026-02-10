@@ -199,6 +199,16 @@ class ReportController extends Controller
                 ]];
             });
             
+        // Prepare revenue data for table (what the view expects)
+        $revenueData = [];
+        foreach ($periods as $period) {
+            $revenueData[] = [
+                'period' => $period['label'],
+                'revenue' => $period['revenue'],
+                'bookings' => $period['bookings']
+            ];
+        }
+            
         return [
             'startDate' => $startDate->format('Y-m-d'),
             'endDate' => $endDate->format('Y-m-d'),
@@ -214,6 +224,7 @@ class ReportController extends Controller
             'chartLabels' => array_column($periods, 'label'),
             'chartData' => ['Room Revenue' => array_column($periods, 'room_revenue'), 'Other Revenue' => array_column($periods, 'other_revenue')],
             'tableData' => array_values($periods),
+            'revenueData' => $revenueData, // Add this for the view
             'paymentMethods' => $paymentMethods,
             'roomTypeRevenue' => $roomTypeRevenue,
         ];
