@@ -30,6 +30,30 @@ class CheckInService
             ]);
 
             $booking->room->update(['status' => 'occupied']);
+
+            // Update payment status from pending to paid
+            $pendingPayment = $booking->payments()->where('status', Payment::STATUS_PENDING)->latest()->first();
+            if ($pendingPayment) {
+                $pendingPayment->update([
+                    'status' => Payment::STATUS_COMPLETED,
+                    'paid_at' => now(),
+                    'notes' => ($pendingPayment->notes ?? '') . ' - Payment confirmed during check-in',
+                ]);
+            } else {
+                // Create payment record if none exists
+                Payment::create([
+                    'booking_id' => $booking->id,
+                    'transaction_reference' => 'CHECKIN' . strtoupper(uniqid()),
+                    'amount' => $booking->total_price ?? 0,
+                    'payment_method' => 'cash',
+                    'status' => Payment::STATUS_COMPLETED,
+                    'notes' => 'Payment confirmed during check-in',
+                    'paid_at' => now(),
+                ]);
+            }
+
+            // Update booking payment status
+            $booking->update(['payment_status' => 'paid', 'payment_confirmed_at' => now()]);
         });
     }
 
