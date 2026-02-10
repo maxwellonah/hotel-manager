@@ -112,7 +112,126 @@ class ReportController extends Controller
 
     public function occupancy(Request $request)
     {
-        // ... (existing occupancy method is fine, leaving it as is)
+        $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+        ]);
+
+        $startDate = $request->filled('start_date')
+            ? Carbon::parse($request->start_date)->startOfDay()
+            : now()->startOfMonth()->startOfDay();
+
+        $endDate = $request->filled('end_date')
+            ? Carbon::parse($request->end_date)->endOfDay()
+            : now()->endOfMonth()->endOfDay();
+
+        $totalRooms = Room::count();
+        $totalDays = max(1, $startDate->diffInDays($endDate) + 1);
+
+        $bookingsQuery = Booking::query()
+            ->with(['room.roomType'])
+            ->where('status', '!=', 'cancelled')
+            ->where(function ($q) use ($startDate, $endDate) {
+                $q->where('check_in', '<=', $endDate)
+                    ->where('check_out', '>=', $startDate);
+            });
+
+        $bookings = $bookingsQuery->get();
+
+        $dates = [];
+        $occupancyRates = [];
+
+        $period = CarbonPeriod::create($startDate->copy()->startOfDay(), '1 day', $endDate->copy()->startOfDay());
+        foreach ($period as $date) {
+            $label = $date->format('Y-m-d');
+            $dates[] = $label;
+
+            if ($totalRooms === 0) {
+                $occupancyRates[] = 0;
+                continue;
+            }
+
+            $occupiedRooms = $bookings
+                ->filter(function ($booking) use ($date) {
+                    $checkIn = Carbon::parse($booking->check_in)->startOfDay();
+                    $checkOut = Carbon::parse($booking->check_out)->startOfDay();
+                    return $checkIn->lte($date) && $checkOut->gt($date);
+                })
+                ->pluck('room_id')
+                ->unique()
+                ->count();
+
+            $occupancyRates[] = round(($occupiedRooms / $totalRooms) * 100, 2);
+        }
+
+        $avgOccupancyRate = count($occupancyRates) > 0
+            ? round(array_sum($occupancyRates) / count($occupancyRates), 2)
+            : 0;
+
+        $roomTypeOccupancy = [];
+        $roomTypes = RoomType::withCount('rooms')->get();
+        foreach ($roomTypes as $roomType) {
+            $roomsCount = (int) ($roomType->rooms_count ?? 0);
+            if ($roomsCount <= 0) {
+                $roomTypeOccupancy[$roomType->name] = [
+                    'rooms' => 0,
+                    'occupied_room_days' => 0,
+                    'total_room_days' => 0,
+                    'occupancy_rate' => 0,
+                ];
+                continue;
+            }
+
+            $occupiedRoomDays = 0;
+            foreach ($period as $date) {
+                $occupiedRoomsForType = $bookings
+                    ->filter(function ($booking) use ($date, $roomType) {
+                        if (!$booking->room || !$booking->room->roomType) {
+                            return false;
+                        }
+
+                        if ((int) $booking->room->room_type_id !== (int) $roomType->id) {
+                            return false;
+                        }
+
+                        $checkIn = Carbon::parse($booking->check_in)->startOfDay();
+                        $checkOut = Carbon::parse($booking->check_out)->startOfDay();
+                        return $checkIn->lte($date) && $checkOut->gt($date);
+                    })
+                    ->pluck('room_id')
+                    ->unique()
+                    ->count();
+
+                $occupiedRoomDays += $occupiedRoomsForType;
+            }
+
+            $totalRoomDays = $roomsCount * $totalDays;
+            $rate = $totalRoomDays > 0 ? round(($occupiedRoomDays / $totalRoomDays) * 100, 2) : 0;
+            $roomTypeOccupancy[$roomType->name] = [
+                'rooms' => $roomsCount,
+                'occupied_room_days' => $occupiedRoomDays,
+                'total_room_days' => $totalRoomDays,
+                'occupancy_rate' => $rate,
+            ];
+        }
+
+        $payload = [
+            'startDate' => $startDate->format('Y-m-d'),
+            'endDate' => $endDate->format('Y-m-d'),
+            'totalRooms' => $totalRooms,
+            'occupancyRate' => $avgOccupancyRate,
+            'dates' => $dates,
+            'occupancyRates' => $occupancyRates,
+            'chartLabels' => $dates,
+            'chartData' => $occupancyRates,
+            'roomTypeOccupancy' => $roomTypeOccupancy,
+        ];
+
+        if ($request->expectsJson()) {
+            return response()->json($payload);
+        }
+
+        return view('admin.reports.occupancy', $payload);
     }
 
     public function bookings(Request $request)
