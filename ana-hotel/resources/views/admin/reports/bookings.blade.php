@@ -487,6 +487,7 @@
     
     // Format percentage
     const formatPercentage = (value) => {
+        if (value === 0 || value === null || value === undefined) return '0.0%';
         return new Intl.NumberFormat('en-US', { 
             style: 'percent',
             minimumFractionDigits: 1,
