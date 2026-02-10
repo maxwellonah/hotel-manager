@@ -84,19 +84,28 @@ class ReportController extends Controller
 
         $occupancyRate = $availableNights > 0 ? ($totalNights / $availableNights) * 100 : 0;
 
+        $averageStay = $totalBookings > 0 ? ($totalNights / $totalBookings) : 0;
+
         return [
             'totalBookings' => $totalBookings,
             'totalRevenue' => $totalRevenue,
             'totalRooms' => $totalRooms,
             'totalGuests' => $totalGuests,
-            'occupancyRate' => round($occupancyRate, 2)
+            'occupancyRate' => round($occupancyRate, 2),
+            'averageStay' => round($averageStay, 2),
+
+            // Compatibility for any JS expecting snake_case keys
+            'total_bookings' => $totalBookings,
+            'total_revenue' => $totalRevenue,
+            'occupancy_rate' => round($occupancyRate, 2),
+            'avg_stay' => round($averageStay, 2),
         ];
     }
 
     public function quickStats()
     {
-        $startDate = now()->startOfMonth()->format('Y-m-d');
-        $endDate = now()->endOfMonth()->format('Y-m-d');
+        $startDate = request('start_date', now()->startOfMonth()->format('Y-m-d'));
+        $endDate = request('end_date', now()->endOfMonth()->format('Y-m-d'));
         $stats = $this->getQuickStats($startDate, $endDate);
         return response()->json($stats);
     }

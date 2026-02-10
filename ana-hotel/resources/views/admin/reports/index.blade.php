@@ -175,7 +175,7 @@
         
         // You can fetch real data from your API endpoints here
         // For now, we'll use placeholder data
-        fetch(`/api/reports/quick-stats?start_date=${startDate}&end_date=${endDate}`)
+        fetch(`{{ route('admin.reports.quick-stats') }}?start_date=${startDate}&end_date=${endDate}`)
             .then(response => response.json())
             .then(data => {
                 document.getElementById('totalBookings').textContent = data.total_bookings || '--';
