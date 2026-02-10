@@ -23,6 +23,46 @@ class ReportController extends Controller
         return view('admin.reports.index', array_merge(compact('startDate', 'endDate'), $stats));
     }
 
+    public function guests(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+        ]);
+
+        $startDate = $request->filled('start_date')
+            ? Carbon::parse($request->start_date)->startOfDay()
+            : now()->startOfMonth()->startOfDay();
+
+        $endDate = $request->filled('end_date')
+            ? Carbon::parse($request->end_date)->endOfDay()
+            : now()->endOfMonth()->endOfDay();
+
+        $totalGuests = User::where('role', 'guest')->count();
+
+        $guestsInRangeQuery = User::query()
+            ->where('role', 'guest')
+            ->whereBetween('created_at', [$startDate, $endDate]);
+
+        $newGuests = (clone $guestsInRangeQuery)->count();
+        $newGuestsPercentage = $totalGuests > 0 ? ($newGuests / $totalGuests) * 100 : 0;
+
+        $countryStats = (clone $guestsInRangeQuery)
+            ->selectRaw("COALESCE(NULLIF(country, ''), 'Unknown') as country, COUNT(*) as total")
+            ->groupBy('country')
+            ->orderByDesc('total')
+            ->get();
+
+        return view('admin.reports.guests', [
+            'startDate' => $startDate->format('Y-m-d'),
+            'endDate' => $endDate->format('Y-m-d'),
+            'totalGuests' => $totalGuests,
+            'newGuests' => $newGuests,
+            'newGuestsPercentage' => $newGuestsPercentage,
+            'countryStats' => $countryStats,
+        ]);
+    }
+
     private function getQuickStats($startDate, $endDate)
     {
         $totalBookings = Booking::whereBetween('created_at', [$startDate, $endDate])->count();

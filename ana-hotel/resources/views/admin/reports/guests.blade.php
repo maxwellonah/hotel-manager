@@ -74,10 +74,10 @@
                                     </dt>
                                     <dd class="flex items-baseline">
                                         <div class="text-2xl font-semibold text-gray-900">
-                                            {{ $totalGuests }}
+                                            {{ $newGuests ?? 0 }}
                                         </div>
                                         <div class="ml-2 flex items-baseline text-sm font-semibold text-green-600">
-                                            {{ $totalGuests }}%
+                                            {{ number_format($newGuestsPercentage ?? 0, 1) }}%
                                         </div>
                                     </dd>
                                 </div>
@@ -140,7 +140,7 @@
                                             {{ $stat->total }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                                            {{ number_format(($stat->total / $totalGuests) * 100, 1) }}%
+                                            {{ number_format(($totalGuests > 0 ? ($stat->total / $totalGuests) * 100 : 0), 1) }}%
                                         </td>
                                     </tr>
                                     @endforeach
