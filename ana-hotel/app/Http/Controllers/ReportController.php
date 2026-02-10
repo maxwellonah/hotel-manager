@@ -8,6 +8,7 @@ use App\Models\Room;
 use App\Models\User;
 use App\Models\RoomType;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -73,7 +74,7 @@ class ReportController extends Controller
             'status' => 'nullable|in:pending,confirmed,checked_in,checked_out,cancelled',
             'room_type' => 'nullable|exists:room_types,id',
         ]);
-        
+    
         $startDate = $request->filled('start_date') 
             ? Carbon::parse($request->start_date)
             : now()->startOfMonth();
@@ -81,61 +82,98 @@ class ReportController extends Controller
         $endDate = $request->filled('end_date')
             ? Carbon::parse($request->end_date)
             : now()->endOfMonth();
-        
-        $query = Booking::query()
-            ->with(['room.roomType', 'user', 'payments'])
-            ->where(function($q) use ($startDate, $endDate) {
+    
+        $baseQuery = Booking::query()
+            ->with(['room.roomType', 'user'])
+            ->where(function ($q) use ($startDate, $endDate) {
                 $q->where('check_in', '<=', $endDate)
                   ->where('check_out', '>=', $startDate);
-            })
-            ->when(!$request->filled('status'), function($q) {
-                $q->where('status', '!=', 'cancelled');
             });
-        
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+    
+        if (!$request->filled('status')) {
+            $baseQuery->where('status', '!=', 'cancelled');
         }
-        
+    
+        if ($request->filled('status')) {
+            $baseQuery->where('status', $request->status);
+        }
+    
         if ($request->filled('room_type')) {
-            $query->whereHas('room', function($q) use ($request) {
+            $baseQuery->whereHas('room', function ($q) use ($request) {
                 $q->where('room_type_id', $request->room_type);
             });
         }
-        
-        $bookings = $query->orderBy('check_in', 'desc')->paginate(15);
-        
-        $totalBookings = $bookings->total();
-        $totalRevenue = $bookings->sum('total_price');
-        
-        $totalNights = $bookings->sum(function($booking) {
+
+        $allBookings = $baseQuery->get();
+    
+        $totalBookings = $allBookings->count();
+        $totalRevenue = $allBookings->where('payment_status', 'paid')->sum('total_price');
+        $totalNights = $allBookings->sum(function($booking) {
             return Carbon::parse($booking->check_in)->diffInDays($booking->check_out);
         });
-        
+
         $averageStay = $totalBookings > 0 ? $totalNights / $totalBookings : 0;
-        $averageDailyRate = $totalNights > 0 ? $totalRevenue / $totalNights : 0;
-        
+    
+        $paidNights = $allBookings->where('payment_status', 'paid')->sum(function($booking) {
+            return Carbon::parse($booking->check_in)->diffInDays($booking->check_out);
+        });
+        $averageDailyRate = $paidNights > 0 ? $totalRevenue / $paidNights : 0;
+
         $totalRooms = Room::count();
         $totalAvailableNights = $totalRooms * $startDate->diffInDays($endDate);
-        $occupiedNights = $bookings->sum(function($booking) use ($startDate, $endDate) {
+        $occupiedNights = $allBookings->sum(function($booking) use ($startDate, $endDate) {
             $checkIn = Carbon::parse($booking->check_in)->max($startDate);
             $checkOut = Carbon::parse($booking->check_out)->min($endDate);
-            return $checkIn->diffInDays($checkOut);
+            return max(0, $checkIn->diffInDays($checkOut));
         });
         $occupancyRate = $totalAvailableNights > 0 ? ($occupiedNights / $totalAvailableNights) * 100 : 0;
+
+        $statusCounts = $allBookings->groupBy('status')->map(function($group, $status) use ($totalBookings) {
+            $count = $group->count();
+            return [
+                'count' => $count,
+                'revenue' => $group->where('payment_status', 'paid')->sum('total_price'),
+                'color' => $this->getStatusColor($status),
+                'percentage' => $totalBookings > 0 ? ($count / $totalBookings) * 100 : 0,
+            ];
+        });
+
+        $roomTypeBookings = $allBookings->groupBy('room.roomType.name')->map(function($group) {
+            return [
+                'count' => $group->count(),
+                'revenue' => $group->where('payment_status', 'paid')->sum('total_price'),
+            ];
+        })->sortByDesc('count');
+
+        $monthlyBookings = [];
+        $monthlyStatusTrends = [];
+        $period = CarbonPeriod::create($startDate, '1 month', $endDate);
+        $statuses = $allBookings->pluck('status')->unique()->sort();
+
+        foreach ($statuses as $status) {
+            $monthlyStatusTrends[$status] = [];
+        }
+
+        foreach ($period as $date) {
+            $month = $date->format('M Y');
+            $monthlyBookings[$month] = 0;
+            foreach ($statuses as $status) {
+                $monthlyStatusTrends[$status][$month] = 0;
+            }
+        }
+
+        foreach ($allBookings as $booking) {
+            $month = Carbon::parse($booking->check_in)->format('M Y');
+            if (isset($monthlyBookings[$month])) {
+                $monthlyBookings[$month]++;
+                if (isset($monthlyStatusTrends[$booking->status][$month])) {
+                    $monthlyStatusTrends[$booking->status][$month]++;
+                }
+            }
+        }
         
-        $statusCounts = $bookings->groupBy('status')
-            ->map(function($bookings, $status) use ($totalBookings) {
-                $count = $bookings->count();
-                return [
-                    'count' => $count,
-                    'revenue' => $bookings->sum('total_price'),
-                    'color' => $this->getStatusColor($status),
-                    'percentage' => $totalBookings > 0 ? ($count / $totalBookings) * 100 : 0
-                ];
-            });
-        
-        $roomTypes = RoomType::orderBy('name')->get();
-        
+        $bookings = $baseQuery->orderBy('check_in', 'desc')->paginate(15);
+
         $data = [
             'bookings' => $bookings,
             'totalBookings' => $totalBookings,
@@ -144,17 +182,20 @@ class ReportController extends Controller
             'occupancyRate' => $occupancyRate,
             'averageDailyRate' => $averageDailyRate,
             'statusCounts' => $statusCounts,
+            'roomTypeBookings' => $roomTypeBookings,
+            'monthlyBookings' => $monthlyBookings,
+            'monthlyStatusTrends' => $monthlyStatusTrends,
             'startDate' => $startDate->format('Y-m-d'),
             'endDate' => $endDate->format('Y-m-d'),
             'selectedStatus' => $request->status,
             'selectedRoomType' => $request->room_type,
-            'roomTypes' => $roomTypes,
+            'roomTypes' => RoomType::orderBy('name')->get(),
         ];
-        
+    
         if ($request->ajax()) {
             return response()->json($data);
         }
-        
+    
         return view('admin.reports.bookings', $data);
     }
     
