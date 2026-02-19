@@ -38,6 +38,9 @@
                         <a href="{{ route('check-out.index') }}" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded text-center transition duration-300">
                             Check-out Guest
                         </a>
+                        <a href="{{ route('admin.rooms.index') }}" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-4 rounded text-center transition duration-300">
+                            Room Management
+                        </a>
                     </div>
                 </div>
                 

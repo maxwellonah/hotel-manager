@@ -1309,6 +1309,7 @@
                     // Auto-select created guest
                     userIdInput.value = guest.id;
                     searchInput.value = `${guest.name} (${guest.email})${guest.phone ? ' - ' + guest.phone : ''}`;
+                    await checkGuestIdRequirement(guest.id);
                     hideSearchResults();
                     closeGuestModal();
                 } catch (err) {

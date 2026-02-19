@@ -8,12 +8,14 @@
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold">Room Management</h2>
                     <div class="flex space-x-3">
-                        <form action="{{ route('admin.rooms.clear-all') }}" method="POST" id="clearRoomsForm">
-                            @csrf
-                            <button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
-                                Clear All Rooms
-                            </button>
-                        </form>
+                        @if(auth()->user()->role === 'admin')
+                            <form action="{{ route('admin.rooms.clear-all') }}" method="POST" id="clearRoomsForm">
+                                @csrf
+                                <button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+                                    Clear All Rooms
+                                </button>
+                            </form>
+                        @endif
                         <a href="{{ route('admin.rooms.create') }}" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
                             Add New Room
                         </a>
@@ -21,13 +23,16 @@
                 </div>
 
                 <script>
-                document.getElementById('clearRoomsForm').addEventListener('submit', function(e) {
-                    if (!confirm('Are you sure you want to delete ALL rooms? This action cannot be undone and will also delete all room images.')) {
-                        e.preventDefault();
-                        return false;
-                    }
-                    console.log('Form submitted, clearing rooms...');
-                });
+                const clearRoomsForm = document.getElementById('clearRoomsForm');
+                if (clearRoomsForm) {
+                    clearRoomsForm.addEventListener('submit', function(e) {
+                        if (!confirm('Are you sure you want to delete ALL rooms? This action cannot be undone and will also delete all room images.')) {
+                            e.preventDefault();
+                            return false;
+                        }
+                        console.log('Form submitted, clearing rooms...');
+                    });
+                }
                 </script>
 
                 @if (session('success'))

@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -124,18 +127,25 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:20'],
-            'identification_type' => ['required', 'string', 'in:passport,national_id,driving_license'],
-            'identification_number' => ['required', 'string', 'max:50'],
+            'identification_type' => ['nullable', 'string', Rule::in(['passport', 'id_card', 'national_id', 'driving_license']), 'required_with:identification_number'],
+            'identification_number' => ['nullable', 'string', 'max:50', 'required_with:identification_type'],
         ]);
+
+        $identificationType = $validated['identification_type'] ?? null;
+
+        // Keep backwards compatibility with historical "national_id" input while matching DB enum.
+        if ($identificationType === 'national_id') {
+            $identificationType = 'id_card';
+        }
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
-            'identification_type' => $validated['identification_type'],
-            'identification_number' => $validated['identification_number'],
+            'identification_type' => $identificationType,
+            'identification_number' => $validated['identification_number'] ?? null,
             // Generate a random password; guest can reset later
-            'password' => \Illuminate\Support\Str::random(32),
+            'password' => Hash::make(Str::random(32)),
             'role' => 'guest',
         ]);
 

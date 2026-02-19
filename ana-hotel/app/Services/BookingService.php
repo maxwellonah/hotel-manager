@@ -175,6 +175,10 @@ class BookingService
 
     private function updateGuestIdentification(int $userId, string $identificationType, string $identificationNumber): void
     {
+        if ($identificationType === 'national_id') {
+            $identificationType = 'id_card';
+        }
+
         $guest = User::where('id', $userId)->where('role', 'guest')->first();
         
         if ($guest) {

@@ -51,17 +51,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin'])->grou
     // User Management
     Route::resource('users', AdminUserController::class);
 
-    // Room Management
-    Route::resource('rooms', RoomController::class);
-    
-    // Room Type Management
-    Route::post('/room-types/{roomType}/update-price', [\App\Http\Controllers\RoomController::class, 'updateRoomTypePrice'])
-        ->name('room-types.update-price');
-    Route::post('/room-types/{roomType}/update-name', [\App\Http\Controllers\RoomController::class, 'updateRoomTypeName'])
-        ->name('room-types.update-name');
-    
     // Clear All Rooms
-    Route::post('/rooms/clear-all', [\App\Http\Controllers\RoomController::class, 'clearAllRooms'])
+    Route::post('/rooms/clear-all', [RoomController::class, 'clearAllRooms'])
         ->name('rooms.clear-all');
 
     // Booking Management
@@ -77,6 +68,16 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin'])->grou
     
     // CSV Downloads
     Route::get('/reports/revenue/csv', [ReportController::class, 'revenueCsv'])->name('reports.revenue.csv');
+});
+
+// Room Management (Admin + Receptionist)
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,receptionist'])->group(function () {
+    Route::resource('rooms', RoomController::class);
+
+    Route::post('/room-types/{roomType}/update-price', [RoomController::class, 'updateRoomTypePrice'])
+        ->name('room-types.update-price');
+    Route::post('/room-types/{roomType}/update-name', [RoomController::class, 'updateRoomTypeName'])
+        ->name('room-types.update-name');
 });
 
 // Room Routes (for non-admin)

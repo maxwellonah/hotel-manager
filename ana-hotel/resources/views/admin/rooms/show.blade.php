@@ -8,11 +8,11 @@
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold">Room Details: {{ $room->room_number }}</h2>
                     <div class="space-x-2">
-                        <a href="{{ route('rooms.edit', $room) }}" 
+                        <a href="{{ route('admin.rooms.edit', $room) }}" 
                            class="text-indigo-600 hover:text-indigo-900">
                             Edit
                         </a>
-                        <a href="{{ route('rooms.index') }}" class="text-gray-600 hover:text-gray-900">
+                        <a href="{{ route('admin.rooms.index') }}" class="text-gray-600 hover:text-gray-900">
                             Back to List
                         </a>
                     </div>
@@ -85,11 +85,11 @@
                         </div>
 
                         <div class="mt-8 pt-6 border-t border-gray-200 flex space-x-3">
-                            <a href="{{ route('rooms.edit', $room) }}" 
+                            <a href="{{ route('admin.rooms.edit', $room) }}" 
                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                                 Edit Room
                             </a>
-                            <form action="{{ route('rooms.destroy', $room) }}" method="POST" class="inline-block">
+                            <form action="{{ route('admin.rooms.destroy', $room) }}" method="POST" class="inline-block">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" 
