@@ -35,7 +35,7 @@ class BookingController extends Controller
         $validated = $request->validate([
             'room_type_id' => 'required|exists:room_types,id',
             'user_id' => 'required_if:is_guest_booking,1|exists:users,id',
-            'check_in' => 'required|date|after_or_equal:today',
+            'check_in' => 'required|date|after_or_equal:yesterday',
             'check_out' => 'required|date|after:check_in',
             'special_requests' => 'nullable|string|max:1000',
             'is_guest_booking' => 'sometimes|in:1',
@@ -146,7 +146,12 @@ class BookingController extends Controller
             return back()->with('error', 'Guest is already checked in.');
         }
 
-        if (!$booking->payments()->where('status', \App\Models\Payment::STATUS_COMPLETED)->exists()) {
+        // Check if completed payment already exists
+        if ($booking->payments()->where('status', \App\Models\Payment::STATUS_COMPLETED)->exists()) {
+            return back()->with('error', 'A completed payment already exists for this booking.');
+        }
+
+        if (!$booking->payments()->where('status', \App\Models\Payment::STATUS_PENDING)->exists()) {
             $pendingPayment = $booking->payments()->where('status', \App\Models\Payment::STATUS_PENDING)->latest()->first();
             if ($pendingPayment) {
                 $pendingPayment->update(['status' => \App\Models\Payment::STATUS_COMPLETED, 'paid_at' => now()]);

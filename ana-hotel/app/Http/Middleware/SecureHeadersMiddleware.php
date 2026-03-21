@@ -43,12 +43,12 @@ class SecureHeadersMiddleware
             
             // Feature Policy
             $featurePolicy = [
-                "geolocation 'self';",
-                "microphone 'none';",
-                "camera 'none';",
-                "payment 'none';",
+                "geolocation 'self'",
+                "microphone 'none'",
+                "camera 'none'",
+                "payment 'none'",
             ];
-            $response->headers->set('Permissions-Policy', implode(' ', $featurePolicy));
+            $response->headers->set('Permissions-Policy', implode(', ', $featurePolicy));
             
             // Cache Control
             if (!app()->environment('local')) {

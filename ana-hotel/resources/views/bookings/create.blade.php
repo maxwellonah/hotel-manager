@@ -120,7 +120,7 @@
                                 <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                             @enderror
                             <p id="check_in_help" class="text-xs text-gray-500 mt-1">
-                                {{ __('Check-in time is from 2:00 PM') }}
+                                {{ __('Check-in time is from 11:59 PM') }}
                             </p>
                         </div>
 
@@ -1228,9 +1228,12 @@
 
         // Set minimum check-out date based on check-in date
         if (checkInInput) {
-            // Set initial minimum dates
-            const today = new Date().toISOString().split('T')[0];
-            checkInInput.min = today;
+            // Set initial minimum dates - use local timezone
+            const today = new Date();
+            const todayFormatted = today.getFullYear() + '-' + 
+                String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(today.getDate()).padStart(2, '0');
+            checkInInput.min = todayFormatted;
             
             // If check-in has a value, set the minimum check-out date
             if (checkInInput.value) {
@@ -1259,7 +1262,7 @@
             
             // Set initial minimum date for check-out
             if (checkOutInput) {
-                checkOutInput.min = today;
+                checkOutInput.min = todayFormatted;
             }
         }
         // Create Guest modal handlers
@@ -1334,12 +1337,12 @@
                 <input type="text" id="new_guest_name" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required>
             </div>
             <div class="mb-4">
-                <label for="new_guest_email" class="block text-sm font-medium text-gray-700">{{ __('Email') }}</label>
-                <input type="email" id="new_guest_email" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required>
+                <label for="new_guest_email" class="block text-sm font-medium text-gray-700">{{ __('Email (optional)') }}</label>
+                <input type="email" id="new_guest_email" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3">
             </div>
             <div class="mb-6">
-                <label for="new_guest_phone" class="block text-sm font-medium text-gray-700">{{ __('Phone (optional)') }}</label>
-                <input type="tel" id="new_guest_phone" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3">
+                <label for="new_guest_phone" class="block text-sm font-medium text-gray-700">{{ __('Phone') }} <span class="text-red-500">*</span></label>
+                <input type="tel" id="new_guest_phone" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required>
             </div>
             <div class="flex items-center justify-end space-x-3">
                 <button type="button" class="px-4 py-2 rounded border border-gray-300 bg-white text-gray-700" onclick="closeGuestModal()">{{ __('Cancel') }}</button>

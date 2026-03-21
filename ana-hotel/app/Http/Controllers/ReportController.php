@@ -533,8 +533,11 @@ class ReportController extends Controller
             'room_type' => 'nullable|exists:room_types,id',
         ]);
 
-        $startDate = $request->filled('start_date') ? Carbon::parse($request->start_date) : now()->subDays(29)->startOfDay();
-        $endDate = $request->filled('end_date') ? Carbon::parse($request->end_date) : now()->endOfDay();
+        // Set database timezone to match application timezone
+        DB::statement("SET time_zone = '-07:00';");
+
+        $startDate = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : now()->subDays(29)->startOfDay();
+        $endDate = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : now()->endOfDay();
         $groupBy = $request->input('group_by', 'day');
 
         $payments = Payment::with(['booking.room.roomType'])
@@ -666,11 +669,11 @@ class ReportController extends Controller
     {
         $date = $date instanceof Carbon ? $date : Carbon::parse($date);
         switch ($groupBy) {
-            case 'day': return $date->format('M d, Y');
-            case 'week': return 'Week of ' . $date->startOfWeek()->format('M d, Y');
+            case 'day': return $date->format('M j, Y');
+            case 'week': return 'Week of ' . $date->startOfWeek()->format('M j, Y');
             case 'month': return $date->format('M Y');
             case 'year': return $date->format('Y');
-            default: return $date->format('M d, Y');
+            default: return $date->format('M j, Y');
         }
     }
 

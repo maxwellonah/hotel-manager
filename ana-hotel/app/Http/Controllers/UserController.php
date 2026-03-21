@@ -44,8 +44,8 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'phone' => ['nullable', 'string', 'max:20'],
+            'email' => ['nullable', 'string', 'email', 'max:255', 'unique:users,email'],
+            'phone' => ['required', 'string', 'max:20'],
             'role' => ['required', 'string', 'in:admin,receptionist,housekeeping,guest'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
@@ -80,8 +80,8 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . $user->id],
-            'phone' => ['nullable', 'string', 'max:20'],
+            'email' => ['nullable', 'string', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'phone' => ['required', 'string', 'max:20'],
             'role' => ['required', 'string', 'in:admin,receptionist,housekeeping,guest'],
         ]);
 
@@ -125,8 +125,8 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'phone' => ['nullable', 'string', 'max:20'],
+            'email' => ['nullable', 'string', 'email', 'max:255', 'unique:users,email'],
+            'phone' => ['required', 'string', 'max:20'],
             'identification_type' => ['nullable', 'string', Rule::in(['passport', 'id_card', 'national_id', 'driving_license']), 'required_with:identification_number'],
             'identification_number' => ['nullable', 'string', 'max:50', 'required_with:identification_type'],
         ]);
@@ -140,7 +140,7 @@ class UserController extends Controller
 
         $user = User::create([
             'name' => $validated['name'],
-            'email' => $validated['email'],
+            'email' => $validated['email'] ?: null,
             'phone' => $validated['phone'] ?? null,
             'identification_type' => $identificationType,
             'identification_number' => $validated['identification_number'] ?? null,

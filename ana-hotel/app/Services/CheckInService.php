@@ -40,6 +40,11 @@ class CheckInService
                     'notes' => ($pendingPayment->notes ?? '') . ' - Payment confirmed during check-in',
                 ]);
             } else {
+                // Check if completed payment already exists before creating new one
+                if ($booking->payments()->where('status', Payment::STATUS_COMPLETED)->exists()) {
+                    throw new \Exception('A completed payment already exists for this booking.');
+                }
+                
                 // Create payment record if none exists
                 Payment::create([
                     'booking_id' => $booking->id,

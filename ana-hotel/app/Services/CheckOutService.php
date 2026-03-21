@@ -24,6 +24,11 @@ class CheckOutService
         }
 
         DB::transaction(function () use ($booking, $validatedData, $additionalChargesTotal) {
+            // Check if completed payment already exists before creating new one
+            if ($booking->payments()->where('status', Payment::STATUS_COMPLETED)->exists()) {
+                throw new \Exception('A completed payment already exists for this booking.');
+            }
+
             $booking->update([
                 'status' => 'checked_out',
                 'checked_out_at' => now(),

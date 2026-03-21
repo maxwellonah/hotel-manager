@@ -29,6 +29,20 @@ class BookingService
 
             $booking = Booking::create($bookingData);
 
+            // Debug logging to track booking creation
+            \Log::info('Booking created', [
+                'booking_id' => $booking->id,
+                'room_id' => $room->id,
+                'room_number' => $room->room_number,
+                'room_type_id' => $validatedData['room_type_id'],
+                'room_type_name' => $room->roomType->name,
+                'user_id' => $validatedData['user_id'],
+                'check_in' => $validatedData['check_in'],
+                'check_out' => $validatedData['check_out'],
+                'total_price' => $totalPrice,
+                'is_guest_booking' => $isGuestBooking,
+            ]);
+
             $room->update(['status' => 'occupied']);
 
             // Update guest identification details if provided
@@ -97,7 +111,7 @@ class BookingService
                             ->orWhereBetween('check_out', [$checkIn, $checkOut])
                             ->orWhere(function ($q) use ($checkIn, $checkOut) {
                                 $q->where('check_in', '<', $checkIn)
-                                    ->where('check_out', '>', $checkOut);
+                                    ->where('check_out', '>', $checkIn);
                             });
                     });
             })
@@ -107,6 +121,16 @@ class BookingService
         if (!$room) {
             throw new \Exception('No rooms of this type are available for the selected dates.');
         }
+
+        // Debug logging to track room selection
+        \Log::info('Room selected for booking', [
+            'requested_room_type_id' => $roomTypeId,
+            'selected_room_id' => $room->id,
+            'selected_room_number' => $room->room_number,
+            'room_type_name' => $room->roomType->name,
+            'check_in' => $checkIn,
+            'check_out' => $checkOut,
+        ]);
 
         return $room;
     }
