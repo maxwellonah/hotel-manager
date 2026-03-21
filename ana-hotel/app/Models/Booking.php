@@ -32,6 +32,7 @@ class Booking extends Model
         'checked_out_at',
         'cancelled_at',
         'is_early_checkin',
+        'payment_status',
         'payment_confirmed_at',
         'total_price',
     ];
@@ -47,6 +48,7 @@ class Booking extends Model
         'total_price'  => 'decimal:2',
         'adults'       => 'integer',
         'children'     => 'integer',
+        'is_early_checkin' => 'boolean',
     ];
 
     /**

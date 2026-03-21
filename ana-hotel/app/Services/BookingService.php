@@ -21,7 +21,12 @@ class BookingService
         $checkInDate = $isEarlyCheckin ? now() : $validatedData['check_in'];
 
         return DB::transaction(function () use ($validatedData, $checkInDate, $isEarlyCheckin, $isGuestBooking) {
-            $room = $this->findAvailableRoom($validatedData['room_type_id'], $checkInDate, $validatedData['check_out']);
+            $room = $this->resolveRoomForBooking(
+                $validatedData['room_type_id'],
+                $validatedData['room_id'] ?? null,
+                $checkInDate,
+                $validatedData['check_out']
+            );
 
             $totalPrice = $this->calculateTotalPrice($validatedData['room_type_id'], $validatedData['check_in'], $validatedData['check_out']);
 
@@ -43,7 +48,7 @@ class BookingService
                 'is_guest_booking' => $isGuestBooking,
             ]);
 
-            $room->update(['status' => 'occupied']);
+            $this->updateRoomStatus($booking);
 
             // Update guest identification details if provided
             if ($isGuestBooking && isset($validatedData['identification_type']) && isset($validatedData['identification_number'])) {
@@ -103,7 +108,7 @@ class BookingService
     private function findAvailableRoom(int $roomTypeId, $checkIn, $checkOut): Room
     {
         $room = Room::where('room_type_id', $roomTypeId)
-            ->where('status', 'available')
+            ->bookableForDates($checkIn)
             ->whereDoesntHave('bookings', function ($query) use ($checkIn, $checkOut) {
                 $query->where('status', '!=', 'cancelled')
                     ->where(function ($q) use ($checkIn, $checkOut) {
@@ -135,6 +140,32 @@ class BookingService
         return $room;
     }
 
+    private function resolveRoomForBooking(int $roomTypeId, ?int $selectedRoomId, $checkIn, $checkOut): Room
+    {
+        if (!$selectedRoomId) {
+            return $this->findAvailableRoom($roomTypeId, $checkIn, $checkOut);
+        }
+
+        $room = Room::where('id', $selectedRoomId)
+            ->where('room_type_id', $roomTypeId)
+            ->first();
+
+        if (!$room) {
+            throw new \Exception('The selected room does not belong to the chosen room type.');
+        }
+
+        $roomIsBookableForDates = Room::query()
+            ->whereKey($room->id)
+            ->bookableForDates($checkIn)
+            ->exists();
+
+        if (!$roomIsBookableForDates || $room->hasActiveBookings($checkIn, $checkOut)) {
+            throw new \Exception('The selected room is not available for the selected dates.');
+        }
+
+        return $room;
+    }
+
     private function calculateTotalPrice(int $roomTypeId, string $checkIn, string $checkOut): float
     {
         $roomType = \App\Models\RoomType::findOrFail($roomTypeId);
@@ -149,7 +180,10 @@ class BookingService
             'user_id' => $validatedData['user_id'],
             'check_in' => $validatedData['check_in'],
             'check_out' => $validatedData['check_out'],
+            'adults' => $validatedData['adults'],
+            'children' => $validatedData['children'] ?? 0,
             'status' => $isEarlyCheckin ? 'checked_in' : 'confirmed',
+            'payment_status' => 'pending',
             'special_requests' => $validatedData['special_requests'] ?? null,
             'total_price' => $totalPrice,
             'is_early_checkin' => $isEarlyCheckin,
@@ -188,9 +222,13 @@ class BookingService
     private function updateRoomStatus(Booking $booking): void
     {
         $room = $booking->room;
-        if (in_array($booking->status, ['checked_in', 'confirmed']) && $room->status !== 'occupied') {
+
+        if ($booking->status === 'checked_in' && $room->status !== 'occupied') {
             $room->update(['status' => 'occupied']);
-        } elseif ($booking->status === 'checked_out' && $room->status === 'occupied') {
+            return;
+        }
+
+        if (in_array($booking->status, ['confirmed', 'pending', 'cancelled', 'checked_out']) && $room->status === 'occupied') {
             if (!Booking::where('room_id', $room->id)->where('status', 'checked_in')->where('id', '!=', $booking->id)->exists()) {
                 $room->update(['status' => 'available']);
             }

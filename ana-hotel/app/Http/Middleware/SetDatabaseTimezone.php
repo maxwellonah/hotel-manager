@@ -16,8 +16,9 @@ class SetDatabaseTimezone
      */
     public function handle($request, Closure $next)
     {
-        // Set database timezone to match system timezone (Pacific Time)
-        DB::statement("SET time_zone = '-07:00';");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("SET time_zone = '-07:00';");
+        }
         
         return $next($request);
     }

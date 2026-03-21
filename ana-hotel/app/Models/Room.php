@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Room extends Model
 {
@@ -50,6 +51,16 @@ class Room extends Model
     {
         return $this->hasMany(Booking::class);
     }
+
+    /**
+     * Active checked-in booking for the room, if any.
+     */
+    public function currentActiveBooking(): HasOne
+    {
+        return $this->hasOne(Booking::class)
+            ->where('status', 'checked_in')
+            ->where('check_out', '>=', now()->format('Y-m-d'));
+    }
     
     /**
      * Get the housekeeping tasks for the room.
@@ -76,6 +87,23 @@ class Room extends Model
     public function scopeAvailable($query)
     {
         return $query->where('status', 'available');
+    }
+
+    /**
+     * Scope a query to rooms that can be booked for the provided dates.
+     *
+     * For future stays we should not exclude rooms just because they are
+     * currently occupied or cleaning; only maintenance should hard-block.
+     */
+    public function scopeBookableForDates($query, $checkIn)
+    {
+        $checkIn = $checkIn instanceof \Carbon\Carbon ? $checkIn : \Carbon\Carbon::parse($checkIn);
+
+        if ($checkIn->isToday()) {
+            return $query->where('status', 'available');
+        }
+
+        return $query->where('status', '!=', 'maintenance');
     }
 
     /**
@@ -156,5 +184,25 @@ class Room extends Model
             ->where('check_out', '>=', now()->format('Y-m-d'))
             ->orderBy('check_in', 'desc')
             ->first();
+    }
+
+    /**
+     * Status used for display so stale room rows do not contradict active stays.
+     */
+    public function getEffectiveStatusAttribute(): string
+    {
+        if ($this->status === 'maintenance') {
+            return 'maintenance';
+        }
+
+        $currentBooking = $this->relationLoaded('currentActiveBooking')
+            ? $this->currentActiveBooking
+            : $this->getCurrentBooking();
+
+        if ($currentBooking) {
+            return 'occupied';
+        }
+
+        return $this->status;
     }
 }

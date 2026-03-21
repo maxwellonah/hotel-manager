@@ -103,6 +103,27 @@
                         @enderror
                     </div>
 
+                    @if(in_array(auth()->user()->role, ['admin', 'receptionist']))
+                        <div class="mb-4">
+                            <label for="room_id" class="block text-gray-700 text-sm font-bold mb-2">
+                                {{ __('Room Assignment') }}
+                            </label>
+                            <select id="room_id"
+                                    name="room_id"
+                                    class="form-select w-full @error('room_id') border-red-500 @enderror"
+                                    data-old-room-id="{{ old('room_id') }}">
+                                <option value="">{{ __('Let the system assign a room automatically') }}</option>
+                            </select>
+                            <p id="room_id_help" class="text-xs text-gray-500 mt-1">
+                                {{ __('Optional: choose a specific available room for the selected room type and dates.') }}
+                            </p>
+                            <p id="room_id_status" class="text-xs text-gray-500 mt-1"></p>
+                            @error('room_id')
+                                <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    @endif
+
                     <div class="mb-4 md:flex md:space-x-4">
                         <div class="mb-4">
                             <label for="check_in" class="block text-gray-700 text-sm font-bold mb-2">
@@ -216,6 +237,23 @@
 
 @push('scripts')
 <script>
+    const guestLookupCache = new Map();
+    const guestSearchCache = new Map();
+    const roomAvailabilityCache = new Map();
+    let guestSearchAbortController = null;
+    let guestDetailsAbortController = null;
+    let roomLookupAbortController = null;
+
+    function cacheGuestRecord(guest) {
+        if (guest && guest.id) {
+            guestLookupCache.set(String(guest.id), guest);
+        }
+    }
+
+    function getCachedGuestRecord(guestId) {
+        return guestLookupCache.get(String(guestId)) || null;
+    }
+
     // Function to toggle early check-in fields
     function toggleEarlyCheckinFields() {
         const checkInDate = new Date(document.getElementById('check_in').value);
@@ -352,8 +390,19 @@
         idSection.classList.remove('hidden');
         
         try {
+            const cachedGuest = getCachedGuestRecord(guestId);
+            if (cachedGuest) {
+                console.log('Using cached guest data for ID requirement check');
+                return updateIdentificationSection(cachedGuest, idSection);
+            }
+
             // Add a timeout to handle cases where the request hangs
+            if (guestDetailsAbortController) {
+                guestDetailsAbortController.abort();
+            }
+
             const controller = new AbortController();
+            guestDetailsAbortController = controller;
             const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
             
             console.log('Fetching guest data from API...');
@@ -375,99 +424,22 @@
             }
             
             const guest = await response.json();
+            cacheGuestRecord(guest);
             console.log('Received guest data:', guest);
             
             if (!guest) {
                 throw new Error('No guest data received from server');
             }
-            
-            // Debug: Log the exact ID values
-            console.log('Guest ID type:', typeof guest.identification_type, 'value:', `'${guest.identification_type}'`);
-            console.log('Guest ID number:', typeof guest.identification_number, 'value:', `'${guest.identification_number}'`);
-            
-            // Check if guest has valid ID information
-            const hasValidId = guest.identification_type && 
-                             guest.identification_type.toString().trim() !== '' && 
-                             guest.identification_number && 
-                             guest.identification_number.toString().trim() !== '';
-            
-            console.log('Has valid ID?', hasValidId);
-            
-            if (hasValidId) {
-                // Hide the section if guest has valid ID
-                console.log('Guest has valid ID, hiding ID section');
-                idSection.innerHTML = '';
-                idSection.classList.add('hidden');
-                
-                // Make sure ID fields are not required
-                const idType = document.getElementById('identification_type');
-                const idNumber = document.getElementById('identification_number');
-                if (idType) idType.required = false;
-                if (idNumber) idNumber.required = false;
-                
-                return false;
-            } else {
-                console.log('Guest does not have valid ID, showing ID section');
-                
-                // Show ID input fields if guest needs to provide ID
-                idSection.innerHTML = `
-                    <div class="mb-4">
-                        <h3 class="text-sm font-medium text-gray-700 mb-2">ID Verification Required</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label for="identification_type" class="block text-sm font-medium text-gray-700">
-                                    ID Type <span class="text-red-500">*</span>
-                                </label>
-                                <select id="identification_type" name="identification_type" required
-                                        class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                        aria-required="true"
-                                        aria-describedby="id_type_help">
-                                    <option value="">Select ID Type</option>
-                                    <option value="passport" {{ old('identification_type') == 'passport' ? 'selected' : '' }}>Passport</option>
-                                    <option value="id_card" {{ old('identification_type') == 'id_card' ? 'selected' : '' }}>National ID Card</option>
-                                    <option value="national_id" {{ old('identification_type') == 'national_id' ? 'selected' : '' }}>National ID</option>
-                                    <option value="driving_license" {{ old('identification_type') == 'driving_license' ? 'selected' : '' }}>Driving License</option>
-                                </select>
-                                <p id="id_type_help" class="text-xs text-gray-500 mt-1">Select the type of identification</p>
-                                @error('identification_type')
-                                    <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label for="identification_number" class="block text-sm font-medium text-gray-700">
-                                    ID/Passport Number <span class="text-red-500">*</span>
-                                </label>
-                                <input type="text" 
-                                       id="identification_number" 
-                                       name="identification_number" 
-                                       value="{{ old('identification_number') }}"
-                                       required
-                                       aria-required="true"
-                                       aria-describedby="id_number_help"
-                                       class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                                <p id="id_number_help" class="text-xs text-gray-500 mt-1">Enter the ID or passport number</p>
-                                @error('identification_number')
-                                    <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                        </div>
-                        <p class="mt-2 text-sm text-gray-500">Please provide valid identification for the guest.</p>
-                    </div>
-                `;
-                
-                idSection.classList.remove('hidden');
-                
-                // Make sure ID fields are required
-                const idType = document.getElementById('identification_type');
-                const idNumber = document.getElementById('identification_number');
-                if (idType) idType.required = true;
-                if (idNumber) idNumber.required = true;
-                
-                return true;
-            }
+
+            return updateIdentificationSection(guest, idSection);
             
         } catch (error) {
             console.error('Error checking guest ID requirement:', error);
+
+            if (error.name === 'AbortError') {
+                console.log('Guest lookup aborted because a newer request started');
+                return false;
+            }
             
             // Show error message but still show the ID section to be safe
             idSection.innerHTML = `
@@ -519,6 +491,75 @@
             
             return true;
         }
+    }
+
+    function updateIdentificationSection(guest, idSection) {
+        console.log('Guest ID type:', typeof guest.identification_type, 'value:', `'${guest.identification_type}'`);
+        console.log('Guest ID number:', typeof guest.identification_number, 'value:', `'${guest.identification_number}'`);
+
+        const hasValidId = guest.identification_type &&
+            guest.identification_type.toString().trim() !== '' &&
+            guest.identification_number &&
+            guest.identification_number.toString().trim() !== '';
+
+        console.log('Has valid ID?', hasValidId);
+
+        if (hasValidId) {
+            console.log('Guest has valid ID, hiding ID section');
+            idSection.innerHTML = '';
+            idSection.classList.add('hidden');
+            return false;
+        }
+
+        console.log('Guest does not have valid ID, showing ID section');
+
+        idSection.innerHTML = `
+            <div class="mb-4">
+                <h3 class="text-sm font-medium text-gray-700 mb-2">ID Verification Required</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="identification_type" class="block text-sm font-medium text-gray-700">
+                            ID Type <span class="text-red-500">*</span>
+                        </label>
+                        <select id="identification_type" name="identification_type" required
+                                class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                aria-required="true"
+                                aria-describedby="id_type_help">
+                            <option value="">Select ID Type</option>
+                            <option value="passport" {{ old('identification_type') == 'passport' ? 'selected' : '' }}>Passport</option>
+                            <option value="id_card" {{ old('identification_type') == 'id_card' ? 'selected' : '' }}>National ID Card</option>
+                            <option value="national_id" {{ old('identification_type') == 'national_id' ? 'selected' : '' }}>National ID</option>
+                            <option value="driving_license" {{ old('identification_type') == 'driving_license' ? 'selected' : '' }}>Driving License</option>
+                        </select>
+                        <p id="id_type_help" class="text-xs text-gray-500 mt-1">Select the type of identification</p>
+                        @error('identification_type')
+                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div>
+                        <label for="identification_number" class="block text-sm font-medium text-gray-700">
+                            ID/Passport Number <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text"
+                               id="identification_number"
+                               name="identification_number"
+                               value="{{ old('identification_number') }}"
+                               required
+                               aria-required="true"
+                               aria-describedby="id_number_help"
+                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <p id="id_number_help" class="text-xs text-gray-500 mt-1">Enter the ID or passport number</p>
+                        @error('identification_number')
+                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+                <p class="mt-2 text-sm text-gray-500">Please provide valid identification for the guest.</p>
+            </div>
+        `;
+
+        idSection.classList.remove('hidden');
+        return true;
     }
     
     // Function to set ID fields as required or not
@@ -605,8 +646,9 @@
             console.error('No guest data found in option');
             return;
         }
-        
+
         console.log('Selected guest data:', guestData);
+        cacheGuestRecord(guestData);
         
         // Get all necessary DOM elements
         const userIdInput = document.getElementById('user_id');
@@ -664,7 +706,7 @@
         
         // Check if ID is required for this guest
         console.log('Checking ID requirement for selected guest:', guestId);
-        checkGuestIdRequirement(guestId);
+        updateIdentificationSection(guestData, document.getElementById('identificationSection'));
         
         // Dispatch a custom event that the guest was selected
         const selectedEvent = new CustomEvent('guestSelected', {
@@ -875,13 +917,20 @@
                 const checkInDate = new Date(this.value);
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-                
+
+                const earlyCheckinFields = document.getElementById('early_checkin_fields');
+                const earlyCheckinCheckbox = document.getElementById('is_early_checkin');
+
+                if (!earlyCheckinFields || !earlyCheckinCheckbox || Number.isNaN(checkInDate.getTime())) {
+                    return;
+                }
+
                 // If check-in date is today, show early check-in options
                 if (checkInDate.getTime() === today.getTime()) {
-                    document.getElementById('early_checkin_fields').classList.remove('hidden');
+                    earlyCheckinFields.classList.remove('hidden');
                 } else {
-                    document.getElementById('early_checkin_fields').classList.add('hidden');
-                    document.getElementById('early_checkin').checked = false;
+                    earlyCheckinFields.classList.add('hidden');
+                    earlyCheckinCheckbox.checked = false;
                 }
             });
         }
@@ -1013,6 +1062,11 @@
         const searchInput = document.getElementById('guest_search');
         const userIdInput = document.getElementById('user_id');
         const searchResults = document.getElementById('guest_search_results');
+        const roomTypeSelect = document.getElementById('room_type_id');
+        const roomSelect = document.getElementById('room_id');
+        const roomStatus = document.getElementById('room_id_status');
+        const checkInInput = document.getElementById('check_in');
+        const checkOutInput = document.getElementById('check_out');
         
         console.log('Search input element:', searchInput);
         console.log('User ID input element:', userIdInput);
@@ -1061,6 +1115,16 @@
             }
 
             searchTimeout = setTimeout(() => {
+                if (guestSearchCache.has(searchTerm)) {
+                    renderGuestResults(guestSearchCache.get(searchTerm));
+                    return;
+                }
+
+                if (guestSearchAbortController) {
+                    guestSearchAbortController.abort();
+                }
+
+                guestSearchAbortController = new AbortController();
                 const url = `/api/v1/guests/search?search=${encodeURIComponent(searchTerm)}`;
                 console.log('Making API request to:', url);
                 fetch(url, {
@@ -1069,7 +1133,8 @@
                         'X-Requested-With': 'XMLHttpRequest',
                         'Content-Type': 'application/json'
                     },
-                    credentials: 'same-origin'
+                    credentials: 'same-origin',
+                    signal: guestSearchAbortController.signal
                 })
                 .then(response => {
                     console.log('API response status:', response.status);
@@ -1082,72 +1147,14 @@
                     return response.json();
                 })
                 .then(guests => {
-                        console.log('API response data:', guests);
-                        if (!Array.isArray(guests)) {
-                            console.error('Invalid response format:', guests);
-                            throw new Error('Invalid response format from server');
-                        }
-                        console.log('Number of guests found:', guests.length);
-
-                        if (guests.length === 0) {
-                            console.log('No guests found');
-                            searchResults.innerHTML = `
-                                <div class="p-2 text-gray-500">No guests found</div>
-                                <div class="p-2">
-                                    <button type="button" class="text-sm text-indigo-600 hover:text-indigo-800" id="createGuestFromResults">
-                                        + {{ __('Create new guest') }}
-                                    </button>
-                                </div>
-                            `;
-                            showSearchResults();
-                            const createBtn = document.getElementById('createGuestFromResults');
-                            if (createBtn) {
-                                createBtn.addEventListener('click', function() {
-                                    openGuestModal();
-                                });
-                            }
-                            return;
-                        }
-
-                        // Clear previous results
-                        searchResults.innerHTML = '';
-                        
-                        // Create result items
-                        guests.forEach(guest => {
-                            const resultItem = document.createElement('div');
-                            resultItem.className = 'search-result-item p-2 hover:bg-gray-100 cursor-pointer';
-                            resultItem.textContent = `${guest.name} (${guest.email})`;
-                            resultItem.setAttribute('data-id', guest.id);
-                            // Store the full guest data in a data attribute
-                            resultItem.setAttribute('data-guest', JSON.stringify(guest));
-                            searchResults.appendChild(resultItem);
-                        });
-                        currentFocus = -1;
-                        showSearchResults();
-                        
-                        // Set up keyboard navigation
-                        const options = searchResults.querySelectorAll('.search-result-item');
-                        options.forEach((option, index) => {
-                            option.addEventListener('click', function() {
-                                selectOption(this);
-                            });
-                            
-                            option.addEventListener('keydown', function(e) {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    selectOption(this);
-                                }
-                            });
-                        });
-                        
-                        // Set first option as active
-                        if (options.length > 0) {
-                            options[0].setAttribute('aria-selected', 'true');
-                            options[0].classList.add('bg-gray-100');
-                            currentFocus = 0;
-                        }
+                        guestSearchCache.set(searchTerm, guests);
+                        renderGuestResults(guests);
                     })
                     .catch(error => {
+                        if (error.name === 'AbortError') {
+                            console.log('Guest search aborted because a newer request started');
+                            return;
+                        }
                         console.error('Search error:', error);
                         searchResults.innerHTML = `<div class="p-2 text-red-500">Error: ${error.message}</div>`;
                         showSearchResults();
@@ -1217,14 +1224,173 @@
             fetch(`/api/v1/guests/${userIdInput.value}`)
                 .then(response => response.json())
                 .then(guest => {
+                    cacheGuestRecord(guest);
                     searchInput.value = `${guest.name} (${guest.email})`;
                 })
                 .catch(console.error);
         }
 
-        // Date picker functionality
-        const checkInInput = document.getElementById('check_in');
-        const checkOutInput = document.getElementById('check_out');
+        function renderGuestResults(guests) {
+            console.log('API response data:', guests);
+            if (!Array.isArray(guests)) {
+                console.error('Invalid response format:', guests);
+                throw new Error('Invalid response format from server');
+            }
+
+            console.log('Number of guests found:', guests.length);
+
+            if (guests.length === 0) {
+                console.log('No guests found');
+                searchResults.innerHTML = `
+                    <div class="p-2 text-gray-500">No guests found</div>
+                    <div class="p-2">
+                        <button type="button" class="text-sm text-indigo-600 hover:text-indigo-800" id="createGuestFromResults">
+                            + {{ __('Create new guest') }}
+                        </button>
+                    </div>
+                `;
+                showSearchResults();
+                const createBtn = document.getElementById('createGuestFromResults');
+                if (createBtn) {
+                    createBtn.addEventListener('click', function() {
+                        openGuestModal();
+                    });
+                }
+                return;
+            }
+
+            searchResults.innerHTML = '';
+
+            guests.forEach(guest => {
+                cacheGuestRecord(guest);
+                const resultItem = document.createElement('div');
+                resultItem.className = 'search-result-item p-2 hover:bg-gray-100 cursor-pointer';
+                resultItem.textContent = `${guest.name} (${guest.email})`;
+                resultItem.setAttribute('role', 'option');
+                resultItem.setAttribute('tabindex', '0');
+                resultItem.setAttribute('data-id', guest.id);
+                resultItem.setAttribute('data-guest', JSON.stringify(guest));
+                searchResults.appendChild(resultItem);
+            });
+
+            currentFocus = -1;
+            showSearchResults();
+
+            const options = searchResults.querySelectorAll('.search-result-item');
+            options.forEach((option) => {
+                option.addEventListener('click', function() {
+                    selectOption(this);
+                });
+
+                option.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        selectOption(this);
+                    }
+                });
+            });
+
+            if (options.length > 0) {
+                options[0].setAttribute('aria-selected', 'true');
+                options[0].classList.add('bg-gray-100');
+                currentFocus = 0;
+            }
+        }
+
+        async function loadAvailableRooms() {
+            if (!roomSelect) {
+                return;
+            }
+
+            const roomTypeId = roomTypeSelect ? roomTypeSelect.value : '';
+            const checkIn = checkInInput ? checkInInput.value : '';
+            const checkOut = checkOutInput ? checkOutInput.value : '';
+            const selectedRoomId = roomSelect.value || roomSelect.dataset.oldRoomId || '';
+            const cacheKey = `${roomTypeId}|${checkIn}|${checkOut}`;
+
+            roomSelect.innerHTML = '<option value="">{{ __('Let the system assign a room automatically') }}</option>';
+
+            if (roomStatus) {
+                roomStatus.textContent = '';
+            }
+
+            if (!roomTypeId || !checkIn || !checkOut) {
+                if (roomStatus) {
+                    roomStatus.textContent = 'Select room type and dates to load available rooms.';
+                }
+                return;
+            }
+
+            if (roomStatus) {
+                roomStatus.textContent = 'Loading available rooms...';
+            }
+
+            try {
+                if (roomAvailabilityCache.has(cacheKey)) {
+                    renderAvailableRooms(roomAvailabilityCache.get(cacheKey), selectedRoomId);
+                    return;
+                }
+
+                if (roomLookupAbortController) {
+                    roomLookupAbortController.abort();
+                }
+
+                roomLookupAbortController = new AbortController();
+                const response = await fetch('/api/v1/check-availability', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    signal: roomLookupAbortController.signal,
+                    body: JSON.stringify({
+                        room_type_id: roomTypeId,
+                        check_in: checkIn,
+                        check_out: checkOut
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const payload = await response.json();
+                const rooms = Array.isArray(payload.data) ? payload.data : [];
+                roomAvailabilityCache.set(cacheKey, rooms);
+                renderAvailableRooms(rooms, selectedRoomId);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.log('Room lookup aborted because a newer request started');
+                    return;
+                }
+                console.error('Failed to load available rooms:', error);
+                if (roomStatus) {
+                    roomStatus.textContent = 'Could not load available rooms right now.';
+                }
+            }
+        }
+
+        function renderAvailableRooms(rooms, selectedRoomId = '') {
+            rooms.forEach((room) => {
+                const option = document.createElement('option');
+                option.value = room.id;
+                option.textContent = `Room ${room.room_number}`;
+                if (String(selectedRoomId) === String(room.id)) {
+                    option.selected = true;
+                }
+                roomSelect.appendChild(option);
+            });
+
+            roomSelect.dataset.oldRoomId = '';
+
+            if (roomStatus) {
+                roomStatus.textContent = rooms.length > 0
+                    ? `${rooms.length} available room(s) found.`
+                    : 'No specific rooms are available for those dates. The booking cannot be created until availability opens up.';
+            }
+        }
 
         // Set minimum check-out date based on check-in date
         if (checkInInput) {
@@ -1264,6 +1430,22 @@
             if (checkOutInput) {
                 checkOutInput.min = todayFormatted;
             }
+        }
+
+        if (roomTypeSelect) {
+            roomTypeSelect.addEventListener('change', loadAvailableRooms);
+        }
+
+        if (checkInInput) {
+            checkInInput.addEventListener('change', loadAvailableRooms);
+        }
+
+        if (checkOutInput) {
+            checkOutInput.addEventListener('change', loadAvailableRooms);
+        }
+
+        if (roomSelect) {
+            loadAvailableRooms();
         }
         // Create Guest modal handlers
         const openCreateGuestModalBtn = document.getElementById('openCreateGuestModal');

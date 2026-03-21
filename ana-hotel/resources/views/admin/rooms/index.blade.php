@@ -89,14 +89,26 @@
                                                 'maintenance' => 'bg-yellow-100 text-yellow-800',
                                                 'cleaning' => 'bg-blue-100 text-blue-800',
                                             ];
-                                            $statusColor = $statusColors[$room->status] ?? 'bg-gray-100 text-gray-800';
+                                            $displayStatus = $room->effective_status;
+                                            $statusColor = $statusColors[$displayStatus] ?? 'bg-gray-100 text-gray-800';
                                         @endphp
                                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ $statusColor }}">
-                                            {{ ucfirst($room->status) }}
+                                            {{ ucfirst($displayStatus) }}
                                         </span>
+                                        @if($room->status !== $displayStatus)
+                                            <div class="text-xs text-gray-500 mt-1">
+                                                Saved as {{ $room->status }}, but an active booking makes it {{ $displayStatus }}.
+                                            </div>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <a href="{{ route('admin.rooms.edit', $room) }}" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</a>
+                                        @if($room->active_bookings_count > 0)
+                                            <form action="{{ route('admin.rooms.clear-active-bookings', $room) }}" method="POST" class="inline-block mr-3" onsubmit="return confirm('Remove all active bookings for this room and delete linked payment and booking-service records? This cannot be undone.');">
+                                                @csrf
+                                                <button type="submit" class="text-amber-600 hover:text-amber-900">Clear Active Bookings</button>
+                                            </form>
+                                        @endif
                                         <form action="{{ route('admin.rooms.destroy', $room) }}" method="POST" class="inline-block" onsubmit="return confirm('Are you sure you want to delete this room?');">
                                             @csrf
                                             @method('DELETE')

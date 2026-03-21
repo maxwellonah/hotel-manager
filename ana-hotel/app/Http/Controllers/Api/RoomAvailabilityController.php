@@ -17,13 +17,14 @@ class RoomAvailabilityController extends Controller
             'ignore_booking_id' => ['nullable', 'exists:bookings,id'],
         ]);
 
-        $query = Room::query()->where('status', 'available');
+        $query = Room::query()->bookableForDates($request->check_in);
 
         if ($request->room_type_id) {
             $query->where('room_type_id', $request->room_type_id);
         }
 
         $query->whereDoesntHave('bookings', function ($q) use ($request) {
+            $q->where('status', '!=', 'cancelled');
             $q->where(function ($q2) use ($request) {
                 $q2->where('check_in', '<', $request->check_out)
                    ->where('check_out', '>', $request->check_in);

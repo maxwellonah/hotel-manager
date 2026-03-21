@@ -20,12 +20,20 @@ Route::prefix('v1')->group(function () {
     // Public routes
     Route::get('/rooms/availability', [RoomAvailabilityController::class, 'checkAvailability']);
     Route::get('/rooms/{room}/availability', [RoomAvailabilityController::class, 'getRoomAvailability']);
-    Route::post('/check-availability', [RoomAvailabilityController::class, 'checkRoomAvailability']);
+    Route::post('/check-availability', [RoomAvailabilityController::class, 'checkRoomAvailability'])
+        ->withoutMiddleware('throttle:api')
+        ->middleware('throttle:room-lookup');
 
     // Guest search
-    Route::get('/guests/search', [App\Http\Controllers\Api\GuestController::class, 'search'])->name('api.guests.search');
+    Route::get('/guests/search', [App\Http\Controllers\Api\GuestController::class, 'search'])
+        ->withoutMiddleware('throttle:api')
+        ->middleware('throttle:guest-lookup')
+        ->name('api.guests.search');
 
-    Route::get('/guests/{id}', [App\Http\Controllers\Api\GuestController::class, 'show'])->where('id', '\d+');
+    Route::get('/guests/{id}', [App\Http\Controllers\Api\GuestController::class, 'show'])
+        ->withoutMiddleware('throttle:api')
+        ->middleware('throttle:guest-lookup')
+        ->where('id', '\d+');
 
     // Protected routes (require authentication)
     Route::middleware('auth:sanctum')->group(function () {

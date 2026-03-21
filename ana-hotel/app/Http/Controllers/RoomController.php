@@ -22,7 +22,9 @@ class RoomController extends Controller
      */
     public function index()
     {
-        $rooms = Room::with('roomType')->paginate(10);
+        $rooms = Room::with(['roomType', 'currentActiveBooking'])
+            ->withCount('activeBookings')
+            ->paginate(10);
         return view('admin.rooms.index', compact('rooms'));
     }
 
@@ -137,6 +139,35 @@ class RoomController extends Controller
         
         return redirect()->route('admin.rooms.index')
             ->with('success', 'Room deleted successfully');
+    }
+
+    /**
+     * Remove active bookings and linked child records for a room.
+     *
+     * @param  \App\Models\Room  $room
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function clearActiveBookings(Room $room): \Illuminate\Http\RedirectResponse
+    {
+        try {
+            DB::transaction(function () use ($room) {
+                $activeBookings = $room->activeBookings()->with(['payments', 'services'])->get();
+
+                foreach ($activeBookings as $booking) {
+                    $booking->payments()->delete();
+                    $booking->services()->detach();
+                    $booking->delete();
+                }
+
+                $room->update(['status' => 'available']);
+            });
+
+            return redirect()->route('admin.rooms.index')
+                ->with('success', 'Active bookings and linked records for the room were removed successfully.');
+        } catch (\Exception $e) {
+            return redirect()->route('admin.rooms.index')
+                ->with('error', 'Failed to clear active bookings for the room: ' . $e->getMessage());
+        }
     }
 
     /**

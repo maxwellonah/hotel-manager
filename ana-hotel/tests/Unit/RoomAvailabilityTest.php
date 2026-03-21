@@ -154,4 +154,54 @@ class RoomAvailabilityTest extends TestCase
             'check_out' => now()->addDay()->toDateString(),
         ])->assertJsonValidationErrors(['check_out']);
     }
+
+    /** @test */
+    public function it_includes_currently_occupied_rooms_for_future_dates_when_they_have_no_overlap()
+    {
+        $occupiedRoom = Room::factory()->create([
+            'room_number' => '103',
+            'room_type_id' => $this->roomType->id,
+            'status' => 'occupied',
+        ]);
+
+        Booking::factory()->create([
+            'room_id' => $occupiedRoom->id,
+            'user_id' => $this->user->id,
+            'status' => 'checked_in',
+            'check_in' => now()->subDay(),
+            'check_out' => now()->addDay(),
+        ]);
+
+        $response = $this->postJson('/api/v1/check-availability', [
+            'check_in' => now()->addDays(3)->toDateString(),
+            'check_out' => now()->addDays(5)->toDateString(),
+            'room_type_id' => $this->roomType->id,
+        ]);
+
+        $response->assertOk();
+        $roomNumbers = collect($response->json('data'))->pluck('room_number')->all();
+
+        $this->assertContains('103', $roomNumbers);
+    }
+
+    /** @test */
+    public function it_excludes_rooms_under_maintenance_from_future_availability()
+    {
+        Room::factory()->create([
+            'room_number' => '104',
+            'room_type_id' => $this->roomType->id,
+            'status' => 'maintenance',
+        ]);
+
+        $response = $this->postJson('/api/v1/check-availability', [
+            'check_in' => now()->addDays(3)->toDateString(),
+            'check_out' => now()->addDays(5)->toDateString(),
+            'room_type_id' => $this->roomType->id,
+        ]);
+
+        $response->assertOk();
+        $roomNumbers = collect($response->json('data'))->pluck('room_number')->all();
+
+        $this->assertNotContains('104', $roomNumbers);
+    }
 }

@@ -34,6 +34,7 @@ class BookingController extends Controller
     {
         $validated = $request->validate([
             'room_type_id' => 'required|exists:room_types,id',
+            'room_id' => 'nullable|exists:rooms,id',
             'user_id' => 'required_if:is_guest_booking,1|exists:users,id',
             'check_in' => 'required|date|after_or_equal:yesterday',
             'check_out' => 'required|date|after:check_in',
@@ -57,10 +58,10 @@ class BookingController extends Controller
                 
                 // If guest doesn't have ID, require ID fields to be filled
                 if (!$hasValidId) {
-                    $request->validate([
+                    $validated = array_merge($validated, $request->validate([
                         'identification_type' => 'required|in:passport,national_id,id_card,driving_license',
                         'identification_number' => 'required|string|max:50',
-                    ]);
+                    ]));
                 }
             }
         }

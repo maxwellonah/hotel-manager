@@ -73,6 +73,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin'])->grou
 // Room Management (Admin + Receptionist)
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,receptionist'])->group(function () {
     Route::resource('rooms', RoomController::class);
+    Route::post('/rooms/{room}/clear-active-bookings', [RoomController::class, 'clearActiveBookings'])
+        ->name('rooms.clear-active-bookings');
 
     Route::post('/room-types/{roomType}/update-price', [RoomController::class, 'updateRoomTypePrice'])
         ->name('room-types.update-price');

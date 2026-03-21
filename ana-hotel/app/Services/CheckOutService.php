@@ -24,28 +24,37 @@ class CheckOutService
         }
 
         DB::transaction(function () use ($booking, $validatedData, $additionalChargesTotal) {
-            // Check if completed payment already exists before creating new one
-            if ($booking->payments()->where('status', Payment::STATUS_COMPLETED)->exists()) {
-                throw new \Exception('A completed payment already exists for this booking.');
-            }
+            $completedPayment = $booking->payments()
+                ->where('status', Payment::STATUS_COMPLETED)
+                ->latest('paid_at')
+                ->first();
 
             $booking->update([
                 'status' => 'checked_out',
                 'checked_out_at' => now(),
-                'check_out_notes' => $validatedData['notes'] ?? null,
-                'additional_charges' => $validatedData['additional_charges'] ?? [],
-                'additional_charges_total' => $additionalChargesTotal,
-                'total_paid' => $booking->total_price + $additionalChargesTotal,
+                'payment_status' => $completedPayment ? 'paid' : ($booking->payment_status ?? 'pending'),
             ]);
 
-            Payment::create([
-                'booking_id' => $booking->id,
-                'transaction_reference' => 'CHKOUT' . strtoupper(uniqid()),
-                'amount' => $booking->total_price + $additionalChargesTotal,
-                'status' => Payment::STATUS_COMPLETED,
-                'notes' => 'Payment recorded at checkout',
-                'paid_at' => now(),
-            ]);
+            if (!$completedPayment) {
+                Payment::create([
+                    'booking_id' => $booking->id,
+                    'transaction_reference' => 'CHKOUT' . strtoupper(uniqid()),
+                    'amount' => $booking->total_price + $additionalChargesTotal,
+                    'status' => Payment::STATUS_COMPLETED,
+                    'notes' => 'Payment recorded at checkout',
+                    'paid_at' => now(),
+                ]);
+            } elseif ($additionalChargesTotal > 0 || !empty($validatedData['notes'])) {
+                $noteParts = array_filter([
+                    $completedPayment->notes,
+                    $additionalChargesTotal > 0 ? 'Checkout additional charges: ' . number_format($additionalChargesTotal, 2) : null,
+                    !empty($validatedData['notes']) ? 'Checkout note: ' . $validatedData['notes'] : null,
+                ]);
+
+                $completedPayment->update([
+                    'notes' => implode(' | ', $noteParts),
+                ]);
+            }
 
             $booking->room->update(['status' => 'cleaning']);
         });

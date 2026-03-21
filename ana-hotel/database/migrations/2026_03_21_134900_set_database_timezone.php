@@ -14,11 +14,9 @@ class SetDatabaseTimezone extends Migration
      */
     public function up()
     {
-        // Set MySQL timezone to match system timezone
-        DB::statement("SET time_zone = '-07:00';");
-        
-        // You can also set it permanently by updating MySQL config
-        // For now, this will ensure the session uses the correct timezone
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("SET time_zone = '-07:00';");
+        }
     }
 
     /**
@@ -28,7 +26,8 @@ class SetDatabaseTimezone extends Migration
      */
     public function down()
     {
-        // Revert to UTC
-        DB::statement("SET time_zone = '+00:00';");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("SET time_zone = '+00:00';");
+        }
     }
 }
