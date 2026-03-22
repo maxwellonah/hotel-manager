@@ -24,7 +24,7 @@
                         </div>
                         <div>
                             <p class="text-sm text-gray-500">Price per Night</p>
-                            <p class="font-medium">${{ number_format($booking->room->roomType->price_per_night, 2) }}</p>
+                            <p class="font-medium">₦{{ number_format($booking->room->roomType->price_per_night, 2) }}</p>
                         </div>
                     </div>
                 </div>
@@ -125,11 +125,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="p-4 bg-white rounded-lg border border-gray-200">
                     <p class="text-sm text-gray-500">Additional Cost</p>
-                    <p class="font-medium text-lg">$<span id="additional-cost">0.00</span></p>
+                    <p class="font-medium text-lg">₦<span id="additional-cost">0.00</span></p>
                 </div>
                 <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <p class="text-sm text-blue-600">New Total</p>
-                    <p class="font-bold text-lg text-blue-800">$<span id="new-total">{{ number_format($booking->total_price, 2) }}</span></p>
+                    <p class="font-bold text-lg text-blue-800">₦<span id="new-total">{{ number_format($booking->total_price, 2) }}</span></p>
                 </div>
             </div>
         </div>

@@ -60,7 +60,7 @@
                                 <h4 class="font-medium text-gray-900">Room Type Details</h4>
                                 <ul class="mt-2 space-y-1 text-sm text-gray-600">
                                     <li>• Capacity: {{ $room->roomType->capacity }} guests</li>
-                                    <li>• Price per night: ${{ number_format($room->roomType->price_per_night, 2) }}</li>
+                                    <li>• Price per night: ₦{{ number_format($room->roomType->price_per_night, 2) }}</li>
                                     @if($room->roomType->description)
                                         <li>• {{ $room->roomType->description }}</li>
                                     @endif

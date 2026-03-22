@@ -103,20 +103,32 @@ class CheckInService
         $additionalCost = $pricePerNight * $additionalNights;
 
         DB::transaction(function () use ($booking, $newCheckOut, $additionalCost, $additionalNights, $validatedData) {
+            // Update booking details
             $booking->update([
                 'check_out' => $newCheckOut,
                 'total_price' => $booking->total_price + $additionalCost,
-                'special_requests' => $booking->special_requests . "\n\nStay extended by {$additionalNights} night(s) on " . now()->format('Y-m-d') . ". " . ($validatedData['notes'] ?? ''),
+                'special_requests' => ($booking->special_requests ?? '') . "\n\nStay extended by {$additionalNights} night(s) on " . now()->format('Y-m-d') . ". " . ($validatedData['notes'] ?? ''),
             ]);
 
+            // Create a NEW payment for the extension - NEVER modify existing payments
             Payment::create([
                 'booking_id' => $booking->id,
                 'transaction_reference' => 'EXT' . strtoupper(uniqid()),
                 'amount' => $additionalCost,
                 'payment_method' => $validatedData['payment_method'] ?? 'cash',
                 'status' => Payment::STATUS_COMPLETED,
-                'notes' => "Extension payment for {$additionalNights} night(s)" . (!empty($validatedData['notes']) ? ' | ' . $validatedData['notes'] : ''),
+                'notes' => "Extension payment for {$additionalNights} night(s) at ₦{$pricePerNight}/night" . (!empty($validatedData['notes']) ? ' | ' . $validatedData['notes'] : ''),
                 'paid_at' => now(),
+            ]);
+
+            // Log the extension for audit purposes
+            \Log::info('Stay extended', [
+                'booking_id' => $booking->id,
+                'additional_nights' => $additionalNights,
+                'additional_cost' => $additionalCost,
+                'new_check_out' => $newCheckOut,
+                'new_total_price' => $booking->total_price + $additionalCost,
+                'extension_payment_ref' => 'EXT' . uniqid(),
             ]);
 
             $booking->update([

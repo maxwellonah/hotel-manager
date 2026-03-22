@@ -97,7 +97,7 @@
                                             @endif
                                         </div>
                                         <div class="text-right">
-                                            <p class="text-2xl font-bold text-blue-600">${{ number_format($roomType->price_per_night, 2) }}</p>
+                                            <p class="text-2xl font-bold text-blue-600">₦{{ number_format($roomType->price_per_night, 2) }}</p>
                                             <p class="text-sm text-gray-500">per night</p>
                                             <p class="text-sm text-gray-500">{{ $roomType->capacity }} {{ Str::plural('guest', $roomType->capacity) }}</p>
                                         </div>

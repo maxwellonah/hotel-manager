@@ -102,7 +102,7 @@
                                                     </div>
                                                 </td>
                                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    ${{ number_format($booking->total_price, 2) }}
+                                                    ₦{{ number_format($booking->total_price, 2) }}
                                                 </td>
                                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                     <a href="{{ route('check-out.process', $booking) }}" class="text-indigo-600 hover:text-indigo-900 mr-3">

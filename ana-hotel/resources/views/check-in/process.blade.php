@@ -68,7 +68,7 @@
                                     Total Amount
                                 </dt>
                                 <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                                    ${{ number_format($booking->total_price, 2) }}
+                                    ₦{{ number_format($booking->total_price, 2) }}
                                 </dd>
                             </div>
                         </dl>

@@ -101,7 +101,7 @@
 
                     <div class="row mb-3">
                         <div class="col-md-4 fw-bold">{{ __('Total Price') }}:</div>
-                        <div class="col-md-8">${{ number_format($booking->total_price, 2) }}</div>
+                        <div class="col-md-8">₦{{ number_format($booking->total_price, 2) }}</div>
                     </div>
 
                     <div class="row mb-3">

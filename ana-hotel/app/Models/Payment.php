@@ -38,6 +38,45 @@ class Payment extends Model
     ];
 
     /**
+     * Boot the model.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Prevent duplicate completed payments for same booking
+        static::creating(function ($payment) {
+            if ($payment->status === self::STATUS_COMPLETED) {
+                $existingCompletedPayment = static::where('booking_id', $payment->booking_id)
+                    ->where('status', self::STATUS_COMPLETED)
+                    ->exists();
+
+                if ($existingCompletedPayment) {
+                    throw new \Exception('A completed payment already exists for this booking. Only one completed payment is allowed per booking.');
+                }
+            }
+        });
+
+        // Prevent modification of payment amounts for completed payments
+        static::updating(function ($payment) {
+            if ($payment->status === self::STATUS_COMPLETED && $payment->isDirty('amount')) {
+                $originalAmount = $payment->getOriginal('amount');
+                $newAmount = $payment->amount;
+                
+                \Log::warning('Attempted to modify completed payment amount', [
+                    'payment_id' => $payment->id,
+                    'booking_id' => $payment->booking_id,
+                    'original_amount' => $originalAmount,
+                    'attempted_amount' => $newAmount,
+                    'user_id' => auth()->id() ?? 'system',
+                ]);
+
+                throw new \Exception("Cannot modify the amount of a completed payment. Original amount: ₦{$originalAmount}, Attempted: ₦{$newAmount}. Create a new payment or refund instead.");
+            }
+        });
+    }
+
+    /**
      * The possible payment statuses.
      *
      * @var array

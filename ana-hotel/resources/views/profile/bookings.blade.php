@@ -85,7 +85,7 @@
                                                 </span>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                ${{ number_format($booking->total_amount, 2) }}
+                                                ₦{{ number_format($booking->total_amount, 2) }}
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <a href="{{ route('bookings.show', $booking) }}" class="text-blue-600 hover:text-blue-900 mr-4">View</a>

@@ -72,7 +72,7 @@
             <div class="bg-white overflow-hidden shadow rounded-lg">
                 <div class="px-4 py-5 sm:p-6">
                     <dt class="text-sm font-medium text-gray-500 truncate">Total Revenue</dt>
-                    <dd class="mt-1 text-3xl font-semibold text-gray-900">${{ number_format($totalRevenue, 2) }}</dd>
+                    <dd class="mt-1 text-3xl font-semibold text-gray-900">₦{{ number_format($totalRevenue, 2) }}</dd>
                 </div>
             </div>
             <div class="bg-white overflow-hidden shadow rounded-lg">
@@ -84,7 +84,7 @@
             <div class="bg-white overflow-hidden shadow rounded-lg">
                 <div class="px-4 py-5 sm:p-6">
                     <dt class="text-sm font-medium text-gray-500 truncate">Average Booking Value</dt>
-                    <dd class="mt-1 text-3xl font-semibold text-gray-900">${{ number_format($averageRate, 2) }}</dd>
+                    <dd class="mt-1 text-3xl font-semibold text-gray-900">₦{{ number_format($averageRate, 2) }}</dd>
                 </div>
             </div>
             <div class="bg-white overflow-hidden shadow rounded-lg">
@@ -142,18 +142,18 @@
                         @foreach($revenueData as $data)
                             <tr>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $data['period'] }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${{ number_format($data['revenue'], 2) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">₦{{ number_format($data['revenue'], 2) }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">{{ $data['bookings'] }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${{ number_format($data['bookings'] > 0 ? $data['revenue'] / $data['bookings'] : 0, 2) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">₦{{ number_format($data['bookings'] > 0 ? $data['revenue'] / $data['bookings'] : 0, 2) }}</td>
                             </tr>
                         @endforeach
                     </tbody>
                     <tfoot class="bg-gray-50">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">${{ number_format($totalRevenue, 2) }}</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">₦{{ number_format($totalRevenue, 2) }}</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{{ $totalBookings }}</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">${{ number_format($averageRate, 2) }}</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">₦{{ number_format($averageRate, 2) }}</th>
                         </tr>
                     </tfoot>
                 </table>
@@ -267,7 +267,7 @@
                                     label += ': ';
                                 }
                                 if (context.parsed.y !== null) {
-                                    label += '$' + context.parsed.y.toLocaleString();
+                                    label += '₦' + context.parsed.y.toLocaleString();
                                 }
                                 return label;
                             }
@@ -279,7 +279,7 @@
                         beginAtZero: true,
                         ticks: {
                             callback: function(value) {
-                                return '$' + value.toLocaleString();
+                                return '₦' + value.toLocaleString();
                             }
                         }
                     }
@@ -333,7 +333,7 @@
                                 const value = context.raw || 0;
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                 const percentage = Math.round((value / total) * 100);
-                                return `${label}: $${value.toLocaleString()} (${percentage}%)`;
+                                return `${label}: ₦${value.toLocaleString()} (${percentage}%)`;
                             }
                         }
                     }
@@ -391,11 +391,11 @@
                         position: 'left',
                         title: {
                             display: true,
-                            text: 'Revenue ($)'
+                            text: 'Revenue (₦)'
                         },
                         ticks: {
                             callback: function(value) {
-                                return '$' + value.toLocaleString();
+                                return '₦' + value.toLocaleString();
                             }
                         }
                     },
@@ -422,7 +422,7 @@
                                 }
                                 if (context.parsed.y !== null) {
                                     if (context.datasetIndex === 0) {
-                                        label += '$' + context.parsed.y.toLocaleString();
+                                        label += '₦' + context.parsed.y.toLocaleString();
                                     } else {
                                         label += context.parsed.y;
                                     }

@@ -179,7 +179,7 @@
             .then(response => response.json())
             .then(data => {
                 document.getElementById('totalBookings').textContent = data.total_bookings || '--';
-                document.getElementById('totalRevenue').textContent = data.total_revenue ? `$${data.total_revenue.toLocaleString()}` : '--';
+                document.getElementById('totalRevenue').textContent = data.total_revenue ? `₦${data.total_revenue.toLocaleString()}` : '--';
                 document.getElementById('avgStay').textContent = data.avg_stay ? `${data.avg_stay} nights` : '--';
                 document.getElementById('occupancyRate').textContent = data.occupancy_rate ? `${data.occupancy_rate}%` : '--%';
             })

@@ -41,7 +41,7 @@
                                         <td>{{ $booking->room->room_number }} ({{ $booking->room->roomType->name }})</td>
                                         <td>{{ \Carbon\Carbon::parse($booking->check_in)->format('M d, Y') }}</td>
                                         <td>{{ \Carbon\Carbon::parse($booking->check_out)->format('M d, Y') }}</td>
-                                        <td>${{ number_format($booking->total_price, 2) }}</td>
+                                        <td>₦{{ number_format($booking->total_price, 2) }}</td>
                                         <td>
                                             <span class="badge bg-{{ $booking->status === 'confirmed' ? 'success' : 'warning' }}">
                                                 {{ ucfirst($booking->status) }}
