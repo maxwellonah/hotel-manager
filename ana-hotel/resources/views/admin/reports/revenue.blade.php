@@ -43,6 +43,17 @@
                             <option value="month" {{ $groupBy === 'month' ? 'selected' : '' }}>Monthly</option>
                         </select>
                     </div>
+                    <div>
+                        <label for="room_type" class="block text-sm font-medium text-gray-700">Room Type</label>
+                        <select name="room_type" id="room_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <option value="">All room types</option>
+                            @foreach($roomTypes as $roomType)
+                                <option value="{{ $roomType->id }}" {{ (string) $selectedRoomType === (string) $roomType->id ? 'selected' : '' }}>
+                                    {{ $roomType->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="flex items-end">
                         <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             Apply Filters
@@ -145,6 +156,68 @@
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">${{ number_format($averageRate, 2) }}</th>
                         </tr>
                     </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white shadow rounded-lg overflow-hidden mt-6">
+            <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+                <h3 class="text-lg font-medium leading-6 text-gray-900">Payment Details</h3>
+                <p class="mt-1 text-sm text-gray-500">Payments in the selected date range with guest and room information.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid At</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room Occupied</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stay</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Paid</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Method</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @forelse($paymentDetails as $payment)
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ optional($payment->paid_at)->format('M j, Y g:i A') ?? 'N/A' }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-gray-900">{{ $payment->booking->user->name ?? 'Unknown Guest' }}</div>
+                                    <div class="text-sm text-gray-500">{{ $payment->booking->user->email ?? 'No email' }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">
+                                        {{ $payment->booking->room->room_number ?? 'N/A' }}
+                                    </div>
+                                    <div class="text-sm text-gray-500">
+                                        {{ $payment->booking->room->roomType->name ?? 'Unknown Room Type' }}
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">
+                                        {{ optional($payment->booking->check_in)->format('M j, Y') ?? 'N/A' }}
+                                    </div>
+                                    <div class="text-sm text-gray-500">
+                                        to {{ optional($payment->booking->check_out)->format('M j, Y') ?? 'N/A' }}
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                                    ${{ number_format($payment->amount, 2) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {{ ucfirst($payment->payment_method ?? 'N/A') }}
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">
+                                    No payments found for the selected filters.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
                 </table>
             </div>
         </div>

@@ -152,21 +152,24 @@ class BookingController extends Controller
             return back()->with('error', 'A completed payment already exists for this booking.');
         }
 
-        if (!$booking->payments()->where('status', \App\Models\Payment::STATUS_PENDING)->exists()) {
-            $pendingPayment = $booking->payments()->where('status', \App\Models\Payment::STATUS_PENDING)->latest()->first();
-            if ($pendingPayment) {
-                $pendingPayment->update(['status' => \App\Models\Payment::STATUS_COMPLETED, 'paid_at' => now()]);
-            } else {
-                \App\Models\Payment::create([
-                    'booking_id' => $booking->id,
-                    'transaction_reference' => 'MANUAL' . strtoupper(uniqid()),
-                    'amount' => $booking->total_price ?? 0,
-                    'payment_method' => 'cash',
-                    'status' => \App\Models\Payment::STATUS_COMPLETED,
-                    'notes' => 'Manually confirmed by staff (no prior payment record).',
-                    'paid_at' => now(),
-                ]);
-            }
+        $pendingPayment = $booking->payments()->where('status', \App\Models\Payment::STATUS_PENDING)->latest()->first();
+
+        if ($pendingPayment) {
+            $pendingPayment->update([
+                'status' => \App\Models\Payment::STATUS_COMPLETED,
+                'paid_at' => now(),
+                'notes' => trim(($pendingPayment->notes ?? '') . ' Payment confirmed by staff.'),
+            ]);
+        } else {
+            \App\Models\Payment::create([
+                'booking_id' => $booking->id,
+                'transaction_reference' => 'MANUAL' . strtoupper(uniqid()),
+                'amount' => $booking->total_price ?? 0,
+                'payment_method' => 'cash',
+                'status' => \App\Models\Payment::STATUS_COMPLETED,
+                'notes' => 'Manually confirmed by staff (no prior payment record).',
+                'paid_at' => now(),
+            ]);
         }
 
         $booking->update(['payment_status' => 'paid', 'payment_confirmed_at' => now()]);

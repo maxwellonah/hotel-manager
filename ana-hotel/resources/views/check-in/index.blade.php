@@ -65,10 +65,7 @@
                                     <tbody class="bg-white divide-y divide-gray-200">
                                         @foreach($pendingCheckIns as $booking)
                                             @php
-                                                $hasCompletablePayment = $booking->payments && $booking->payments->contains(function ($p) {
-                                                    return in_array($p->status, [\App\Models\Payment::STATUS_COMPLETED, \App\Models\Payment::STATUS_PENDING]);
-                                                });
-                                                $canAccept = $hasCompletablePayment && $booking->status !== 'checked_in' && ($booking->payment_status !== 'paid');
+                                                $canAccept = $booking->status !== 'checked_in' && ($booking->payment_status !== 'paid');
                                             @endphp
                                             <tr>
                                                 <td class="px-6 py-4 whitespace-nowrap">
@@ -113,14 +110,6 @@
                                                             @csrf
                                                             <button type="submit" class="inline-flex items-center px-3 py-1.5 rounded bg-indigo-600 text-white text-xs hover:bg-indigo-700">Accept Payment</button>
                                                         </form>
-                                                    @else
-                                                        @php $noPayments = !$booking->payments || $booking->payments->isEmpty(); @endphp
-                                                        @if($noPayments && auth()->check() && auth()->user()->role === 'admin' && $booking->status !== 'checked_in' && ($booking->payment_status !== 'paid'))
-                                                            <form action="{{ route('admin.bookings.create-pending-payment', $booking->id) }}" method="POST" class="inline" onsubmit="return confirm('Create a pending payment record for this booking?');">
-                                                                @csrf
-                                                                <button type="submit" class="inline-flex items-center px-3 py-1.5 rounded bg-yellow-600 text-white text-xs hover:bg-yellow-700">Create Pending Payment</button>
-                                                            </form>
-                                                        @endif
                                                     @endif
                                                     <a href="{{ route('check-in.process', $booking) }}" class="text-indigo-600 hover:text-indigo-900">
                                                         Check-in

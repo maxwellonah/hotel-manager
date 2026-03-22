@@ -49,10 +49,7 @@
                         <tbody class="bg-white divide-y divide-gray-200">
                             @forelse($bookings as $booking)
                                 @php
-                                    $hasCompletablePayment = $booking->payments && $booking->payments->contains(function ($p) {
-                                        return in_array($p->status, [\App\Models\Payment::STATUS_COMPLETED, \App\Models\Payment::STATUS_PENDING]);
-                                    });
-                                    $canAccept = $hasCompletablePayment && $booking->status !== 'checked_in' && ($booking->payment_status !== 'paid');
+                                    $canAccept = $booking->status !== 'checked_in' && ($booking->payment_status !== 'paid');
                                 @endphp
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

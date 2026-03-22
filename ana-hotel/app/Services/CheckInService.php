@@ -111,8 +111,13 @@ class CheckInService
                 'amount' => $additionalCost,
                 'payment_method' => $validatedData['payment_method'] ?? 'cash',
                 'status' => Payment::STATUS_COMPLETED,
-                'notes' => "Extension payment for {$additionalNights} night(s)",
+                'notes' => "Extension payment for {$additionalNights} night(s)" . (!empty($validatedData['notes']) ? ' | ' . $validatedData['notes'] : ''),
                 'paid_at' => now(),
+            ]);
+
+            $booking->update([
+                'payment_status' => 'paid',
+                'payment_confirmed_at' => now(),
             ]);
         });
         

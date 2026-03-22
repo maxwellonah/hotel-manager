@@ -48,27 +48,6 @@ class Payment extends Model
     public const STATUS_REFUNDED = 'refunded';
 
     /**
-     * Boot the model.
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        // Prevent duplicate completed payments for same booking
-        static::creating(function ($payment) {
-            if ($payment->status === self::STATUS_COMPLETED) {
-                $existingCompletedPayment = static::where('booking_id', $payment->booking_id)
-                    ->where('status', self::STATUS_COMPLETED)
-                    ->exists();
-
-                if ($existingCompletedPayment) {
-                    throw new \Exception('A completed payment already exists for this booking. Only one completed payment is allowed per booking.');
-                }
-            }
-        });
-    }
-
-    /**
      * Get the booking that owns the payment.
      */
     public function booking(): BelongsTo

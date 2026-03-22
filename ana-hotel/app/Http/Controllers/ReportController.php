@@ -533,8 +533,9 @@ class ReportController extends Controller
             'room_type' => 'nullable|exists:room_types,id',
         ]);
 
-        // Set database timezone to match application timezone
-        DB::statement("SET time_zone = '-07:00';");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("SET time_zone = '-07:00';");
+        }
 
         $startDate = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : now()->subDays(29)->startOfDay();
         $endDate = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : now()->endOfDay();
@@ -552,6 +553,17 @@ class ReportController extends Controller
             ->groupBy(function ($payment) use ($groupBy) {
                 return $this->getPeriod($payment->paid_at, $groupBy);
             });
+
+        $paymentDetails = Payment::with(['booking.user', 'booking.room.roomType'])
+            ->where('status', 'completed')
+            ->whereBetween('paid_at', [$startDate, $endDate])
+            ->when($request->filled('room_type'), function ($q) use ($request) {
+                $q->whereHas('booking.room', function ($qq) use ($request) {
+                    $qq->where('room_type_id', $request->room_type);
+                });
+            })
+            ->orderByDesc('paid_at')
+            ->get();
 
         $periods = [];
         $currentDate = $startDate->copy();
@@ -650,6 +662,7 @@ class ReportController extends Controller
             'revenueData' => $revenueData, 
             'paymentMethods' => $paymentMethods,
             'roomTypeRevenue' => $roomTypeRevenue,
+            'paymentDetails' => $paymentDetails,
         ];
     }
     
