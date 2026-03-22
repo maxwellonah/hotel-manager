@@ -40,21 +40,25 @@ class CheckInService
                     'notes' => ($pendingPayment->notes ?? '') . ' - Payment confirmed during check-in',
                 ]);
             } else {
-                // Check if completed payment already exists before creating new one
-                if ($booking->payments()->where('status', Payment::STATUS_COMPLETED)->exists()) {
-                    throw new \Exception('A completed payment already exists for this booking.');
+                // Check if completed payment already exists
+                $existingCompletedPayment = $booking->payments()->where('status', Payment::STATUS_COMPLETED)->first();
+                if ($existingCompletedPayment) {
+                    // Payment already exists, just add a note
+                    $existingCompletedPayment->update([
+                        'notes' => ($existingCompletedPayment->notes ?? '') . ' - Guest checked in on ' . now()->format('Y-m-d H:i:s'),
+                    ]);
+                } else {
+                    // Create payment record if none exists
+                    Payment::create([
+                        'booking_id' => $booking->id,
+                        'transaction_reference' => 'CHECKIN' . strtoupper(uniqid()),
+                        'amount' => $booking->total_price ?? 0,
+                        'payment_method' => 'cash',
+                        'status' => Payment::STATUS_COMPLETED,
+                        'notes' => 'Payment confirmed during check-in',
+                        'paid_at' => now(),
+                    ]);
                 }
-                
-                // Create payment record if none exists
-                Payment::create([
-                    'booking_id' => $booking->id,
-                    'transaction_reference' => 'CHECKIN' . strtoupper(uniqid()),
-                    'amount' => $booking->total_price ?? 0,
-                    'payment_method' => 'cash',
-                    'status' => Payment::STATUS_COMPLETED,
-                    'notes' => 'Payment confirmed during check-in',
-                    'paid_at' => now(),
-                ]);
             }
 
             // Update booking payment status

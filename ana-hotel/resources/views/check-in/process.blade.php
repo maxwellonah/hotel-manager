@@ -89,7 +89,7 @@
                             </p>
                         </div>
 
-                        <div class="border-t border-gray-200 px-4 py-5 sm:p-6">
+                        <div class="px-4 py-5 sm:p-6">
                             <div class="grid grid-cols-6 gap-6">
                                 @if(!$guestHasId)
                                     <div class="col-span-6 sm:col-span-3">
@@ -139,25 +139,23 @@
                         </div>
 
                         <div class="px-4 py-3 bg-gray-50 text-right sm:px-6">
-                            <div class="px-4 py-3 bg-gray-50 flex justify-between items-center sm:px-6">
-                                <div>
-                                    <form id="cancel-form" action="{{ route('check-in.cancel', $booking) }}" method="POST" class="inline">
-                                        @csrf
-                                        @method('PUT')
-                                        <button type="submit" 
-                                            onclick="return confirm('Are you sure you want to cancel this check-in? This action cannot be undone.')"
-                                            class="inline-flex justify-center py-2 px-4 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                                            Cancel Check-in
-                                        </button>
-                                    </form>
-                                </div>
-                                <div>
-                                    <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                        Complete Check-in
-                                    </button>
-                                </div>
-                            </div>
+                            <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                Complete Check-in
+                            </button>
                         </div>
+                    </form>
+                </div>
+
+                <!-- Cancel Check-in Form (Outside main form) -->
+                <div class="mt-4 px-4 py-3 bg-white border-t border-gray-200 sm:px-6">
+                    <form action="{{ route('check-in.cancel', $booking) }}" method="POST" class="inline">
+                        @csrf
+                        @method('PUT')
+                        <button type="submit" 
+                            onclick="return confirm('Are you sure you want to cancel this check-in? This action cannot be undone.')"
+                            class="inline-flex justify-center py-2 px-4 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                            Cancel Check-in
+                        </button>
                     </form>
                 </div>
             </div>

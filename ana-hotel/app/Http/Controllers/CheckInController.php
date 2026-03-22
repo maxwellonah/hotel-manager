@@ -68,10 +68,28 @@ class CheckInController extends Controller
         $validated = $request->validate($rules);
 
         try {
+            // Debug logging
+            \Log::info('Attempting check-in', [
+                'booking_id' => $booking->id,
+                'user_id' => $user->id,
+                'require_id' => $requireId,
+                'validated_data' => $validated,
+                'current_booking_status' => $booking->status,
+            ]);
+
             $this->checkInService->completeCheckIn($booking, $validated, $requireId);
+            
+            \Log::info('Check-in completed successfully', ['booking_id' => $booking->id]);
+            
             return redirect()->route('check-in.index')->with('success', 'Guest has been checked in successfully.');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'An error occurred during check-in. Please try again.');
+            \Log::error('Check-in failed', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return redirect()->back()->with('error', 'An error occurred during check-in: ' . $e->getMessage());
         }
     }
 
