@@ -141,7 +141,7 @@
                                 <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                             @enderror
                             <p id="check_in_help" class="text-xs text-gray-500 mt-1">
-                                {{ __('Check-in time is from 11:59 PM') }}
+                                {{ __('Check-in time is from 12:00 AM') }}
                             </p>
                         </div>
 

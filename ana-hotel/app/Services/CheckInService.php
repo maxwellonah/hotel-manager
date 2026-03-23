@@ -99,10 +99,13 @@ class CheckInService
 
         $additionalNights = $validatedData['additional_nights'];
         $newCheckOut = Carbon::parse($booking->check_out)->addDays($additionalNights);
-        $pricePerNight = $booking->room->roomType->price_per_night;
+        
+        // Load room with roomType to ensure price_per_night is available
+        $room = $booking->room()->with('roomType')->first();
+        $pricePerNight = $room->roomType->price_per_night;
         $additionalCost = $pricePerNight * $additionalNights;
 
-        DB::transaction(function () use ($booking, $newCheckOut, $additionalCost, $additionalNights, $validatedData) {
+        DB::transaction(function () use ($booking, $newCheckOut, $additionalCost, $additionalNights, $validatedData, $pricePerNight) {
             // Update booking details
             $booking->update([
                 'check_out' => $newCheckOut,
@@ -129,6 +132,7 @@ class CheckInService
                 'new_check_out' => $newCheckOut,
                 'new_total_price' => $booking->total_price + $additionalCost,
                 'extension_payment_ref' => 'EXT' . uniqid(),
+                'price_per_night' => $pricePerNight,
             ]);
 
             $booking->update([

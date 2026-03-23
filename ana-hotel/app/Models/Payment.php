@@ -44,11 +44,20 @@ class Payment extends Model
     {
         parent::boot();
 
-        // Prevent duplicate completed payments for same booking
+        // Prevent duplicate completed payments for same booking (but allow extensions)
         static::creating(function ($payment) {
             if ($payment->status === self::STATUS_COMPLETED) {
+                // Allow extension payments (transaction reference starts with EXT)
+                if (str_starts_with($payment->transaction_reference ?? '', 'EXT')) {
+                    return; // Allow extension payments
+                }
+                
+                // Check for existing non-extension completed payments
                 $existingCompletedPayment = static::where('booking_id', $payment->booking_id)
                     ->where('status', self::STATUS_COMPLETED)
+                    ->where(function ($query) {
+                        $query->where('transaction_reference', 'NOT LIKE', 'EXT%');
+                    })
                     ->exists();
 
                 if ($existingCompletedPayment) {
