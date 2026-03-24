@@ -28,7 +28,7 @@ class CheckInController extends Controller
 
         $checkedInGuests = Booking::with(['room.roomType', 'user'])
             ->where('status', 'checked_in')
-            ->whereDate('check_out', '>=', $today)
+            ->whereDate('check_out', '>=', Carbon::today()->subDay())  // Include guests checking out today
             ->orderBy('check_out')
             ->paginate(10, ['*'], 'checked_in_page');
 
