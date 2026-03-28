@@ -66,7 +66,7 @@ class ReportController extends Controller
     private function getQuickStats($startDate, $endDate)
     {
         $totalBookings = Booking::whereBetween('created_at', [$startDate, $endDate])->count();
-        $totalRevenue = Booking::where('payment_status', 'paid')->whereBetween('payment_confirmed_at', [$startDate, $endDate])->sum('total_price');
+        $totalRevenue = Payment::where('status', 'completed')->sum('amount');
         $totalRooms = Room::count();
         $totalGuests = User::where('role', 'guest')->count();
 

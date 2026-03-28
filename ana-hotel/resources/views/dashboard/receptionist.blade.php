@@ -21,7 +21,7 @@
                     
                     <div class="bg-yellow-50 p-6 rounded-lg">
                         <h3 class="text-lg font-semibold text-gray-800 mb-2">Available Rooms</h3>
-                        <p class="text-3xl font-bold text-yellow-600">{{ \App\Models\Room::where('status', 'available')->count() }}</p>
+                        <p class="text-3xl font-bold text-yellow-600">{{ $availableRooms }}</p>
                     </div>
                 </div>
                 

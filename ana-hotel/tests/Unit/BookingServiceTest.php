@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\User;
+use App\Models\Booking;
 use App\Services\BookingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -140,5 +141,62 @@ class BookingServiceTest extends TestCase
             'check_out' => now()->addDays(4)->toDateString(),
             'adults' => 1,
         ]);
+    }
+
+    /** @test */
+    public function it_allows_updating_to_a_room_when_the_previous_booking_checks_out_on_the_new_check_in_date()
+    {
+        $roomType = RoomType::factory()->create([
+            'price_per_night' => 150,
+        ]);
+
+        $currentRoom = Room::factory()->create([
+            'room_type_id' => $roomType->id,
+            'status' => 'available',
+        ]);
+
+        $targetRoom = Room::factory()->create([
+            'room_type_id' => $roomType->id,
+            'status' => 'available',
+        ]);
+
+        $guest = User::factory()->create([
+            'role' => 'guest',
+        ]);
+
+        Booking::factory()->create([
+            'room_id' => $targetRoom->id,
+            'user_id' => $guest->id,
+            'check_in' => '2026-03-26',
+            'check_out' => '2026-03-27',
+            'status' => 'checked_out',
+            'payment_status' => 'paid',
+            'adults' => 1,
+            'children' => 0,
+            'total_price' => 150,
+        ]);
+
+        $bookingToUpdate = Booking::factory()->create([
+            'room_id' => $currentRoom->id,
+            'user_id' => $guest->id,
+            'check_in' => '2026-03-27',
+            'check_out' => '2026-03-28',
+            'status' => 'confirmed',
+            'payment_status' => 'pending',
+            'adults' => 1,
+            'children' => 0,
+            'total_price' => 150,
+        ]);
+
+        app(BookingService::class)->updateBooking($bookingToUpdate, [
+            'room_id' => $targetRoom->id,
+            'user_id' => $guest->id,
+            'check_in' => '2026-03-27',
+            'check_out' => '2026-03-28',
+            'status' => 'confirmed',
+            'special_requests' => null,
+        ]);
+
+        $this->assertEquals($targetRoom->id, $bookingToUpdate->fresh()->room_id);
     }
 }

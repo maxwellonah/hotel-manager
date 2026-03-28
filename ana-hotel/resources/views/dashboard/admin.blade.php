@@ -21,7 +21,7 @@
                     
                     <div class="bg-yellow-50 p-6 rounded-lg">
                         <h3 class="text-lg font-semibold text-gray-800 mb-2">Total Revenue</h3>
-                        <p class="text-3xl font-bold text-yellow-600">₦{{ number_format(\App\Models\Payment::sum('amount'), 2) }}</p>
+                        <p class="text-3xl font-bold text-yellow-600">₦{{ number_format(\App\Models\Payment::where('status', 'completed')->sum('amount'), 2) }}</p>
                     </div>
                 </div>
                 

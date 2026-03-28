@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\Room;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
@@ -25,8 +26,8 @@ class DashboardController extends Controller
             case 'admin':
                 // Add admin-specific data
                 $data['stats'] = [
-                    'totalRooms' => \App\Models\Room::count(),
-                    'availableRooms' => \App\Models\Room::where('status', 'available')->count(),
+                    'totalRooms' => Room::count(),
+                    'availableRooms' => $this->countEffectivelyAvailableRooms(),
                     'totalBookings' => \App\Models\Booking::count(),
                     'activeBookings' => \App\Models\Booking::whereIn('status', ['confirmed', 'checked_in'])->count(),
                 ];
@@ -41,7 +42,7 @@ class DashboardController extends Controller
                 $data['todayCheckOuts'] = \App\Models\Booking::whereDate('check_out', $today)
                     ->where('status', 'checked_in')
                     ->count();
-                $data['availableRooms'] = \App\Models\Room::where('status', 'available')->count();
+                $data['availableRooms'] = $this->countEffectivelyAvailableRooms();
                 return view('dashboard.receptionist', $data);
                 
             case 'housekeeping':
@@ -89,5 +90,15 @@ class DashboardController extends Controller
         } else {
             return 'Good Evening';
         }
+    }
+
+    protected function countEffectivelyAvailableRooms(): int
+    {
+        return Room::with('currentActiveBooking')
+            ->get()
+            ->filter(function (Room $room) {
+                return $room->effective_status === 'available';
+            })
+            ->count();
     }
 }

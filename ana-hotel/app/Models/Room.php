@@ -150,9 +150,10 @@ class Room extends Model
             })
             ->where(function($query) use ($checkIn, $checkOut) {
                 $query->where(function($q) use ($checkIn, $checkOut) {
-                    // Check for date overlap
-                    $q->where('check_in', '<', $checkOut->format('Y-m-d'))
-                      ->where('check_out', '>', $checkIn->format('Y-m-d'));
+                    // Hotel stays are date-based: a booking that checks out on the
+                    // next guest's check-in date should not count as an overlap.
+                    $q->whereDate('check_in', '<', $checkOut->format('Y-m-d'))
+                      ->whereDate('check_out', '>', $checkIn->format('Y-m-d'));
                 });
             })
             ->exists();

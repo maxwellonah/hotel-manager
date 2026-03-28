@@ -24,6 +24,7 @@ class RoomController extends Controller
     {
         $rooms = Room::with(['roomType', 'currentActiveBooking'])
             ->withCount('activeBookings')
+            ->orderBy('room_number', 'asc')
             ->paginate(10);
         return view('admin.rooms.index', compact('rooms'));
     }

@@ -63,6 +63,7 @@ class BookingService
     {
         $isEarlyCheckin = !empty($validatedData['is_early_checkin']);
         $checkInDate = $isEarlyCheckin ? now() : $validatedData['check_in'];
+        $originalRoomId = $booking->room_id;
 
         if ($this->isBookingDetailsChanged($booking, $validatedData)) {
             if (!$this->isRoomAvailable($validatedData['room_id'], $checkInDate, $validatedData['check_out'], $booking->id)) {
@@ -76,9 +77,18 @@ class BookingService
             $validatedData['checked_in_at'] = now();
         }
 
-        DB::transaction(function () use ($booking, $validatedData) {
+        DB::transaction(function () use ($booking, $validatedData, $originalRoomId) {
             $booking->update($validatedData);
-            $this->updateRoomStatus($booking);
+            $booking->unsetRelation('room');
+            $booking->load('room');
+
+            $this->syncRoomStatusById($originalRoomId);
+
+            if ($booking->room_id !== $originalRoomId) {
+                $this->syncRoomStatusById($booking->room_id);
+            } else {
+                $this->updateRoomStatus($booking);
+            }
         });
 
         return $booking;
@@ -205,23 +215,28 @@ class BookingService
 
     private function isRoomAvailable(int $roomId, $checkIn, $checkOut, int $bookingId): bool
     {
-        return !Booking::where('room_id', $roomId)
-            ->where('id', '!=', $bookingId)
-            ->where('status', '!=', 'cancelled')
-            ->where(function ($query) use ($checkIn, $checkOut) {
-                $query->whereBetween('check_in', [$checkIn, $checkOut])
-                    ->orWhereBetween('check_out', [$checkIn, $checkOut])
-                    ->orWhere(function ($q) use ($checkIn, $checkOut) {
-                        $q->where('check_in', '<', $checkIn)
-                            ->where('check_out', '>', $checkOut);
-                    });
-            })
+        $room = Room::find($roomId);
+
+        if (!$room) {
+            return false;
+        }
+
+        $roomIsBookableForDates = Room::query()
+            ->whereKey($roomId)
+            ->bookableForDates($checkIn)
             ->exists();
+
+        return $roomIsBookableForDates
+            && !$room->hasActiveBookings($checkIn, $checkOut, $bookingId);
     }
 
     private function updateRoomStatus(Booking $booking): void
     {
         $room = $booking->room;
+
+        if (!$room) {
+            return;
+        }
 
         if ($booking->status === 'checked_in' && $room->status !== 'occupied') {
             $room->update(['status' => 'occupied']);
@@ -233,6 +248,27 @@ class BookingService
                 $room->update(['status' => 'available']);
             }
         }
+    }
+
+    private function syncRoomStatusById(?int $roomId): void
+    {
+        if (!$roomId) {
+            return;
+        }
+
+        $room = Room::find($roomId);
+
+        if (!$room || $room->status === 'maintenance') {
+            return;
+        }
+
+        $hasCheckedInBooking = Booking::where('room_id', $roomId)
+            ->where('status', 'checked_in')
+            ->exists();
+
+        $room->update([
+            'status' => $hasCheckedInBooking ? 'occupied' : 'available',
+        ]);
     }
 
     private function updateGuestIdentification(int $userId, string $identificationType, string $identificationNumber): void
